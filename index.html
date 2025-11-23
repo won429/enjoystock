@@ -191,6 +191,8 @@
             <div class="px-5 mb-2 flex items-center gap-1">
                 <div class="w-1.5 h-1.5 rounded-full bg-[#3182f6] animate-pulse" id="live-dot"></div>
                 <span class="text-xs font-medium text-[#8b95a1]" id="chart-status-text">실시간</span>
+                <!-- 시장 분위기 디버그용 (필요시 주석 해제) -->
+                <!-- <span id="market-mood-debug" class="text-[10px] text-gray-300 ml-2"></span> -->
             </div>
             <!-- 드래그 가능한 차트 영역 -->
             <div class="w-full h-[320px] relative mt-2 touch-pan-x cursor-grab active:cursor-grabbing" id="chart-container">
@@ -338,7 +340,11 @@
                 isAdmin: false,
                 chartOffset: 0, 
                 isDragging: false,
-                lastX: 0
+                lastX: 0,
+                
+                // 시장 분위기 (30분마다 변경)
+                marketMood: 'neutral', // 'bull' (상승장), 'bear' (하락장), 'neutral' (횡보)
+                nextMoodChange: 0 // 다음 분위기 변경 시간
             };
 
             // === 1. Firebase Auth & Data ===
@@ -369,6 +375,10 @@
                         state.manualPause = data.manualPause || false;
                         state.basePrice = data.basePrice || 100;
                         state.basePriceLabel = data.basePriceLabel || "시작가보다";
+                        // 시장 분위기 동기화
+                        state.marketMood = data.marketMood || 'neutral';
+                        state.nextMoodChange = data.nextMoodChange || 0;
+                        
                         state.isConnected = true;
                         els.syncStatus.classList.remove('bg-gray-300', 'bg-red-500');
                         els.syncStatus.classList.add('bg-green-500');
@@ -397,6 +407,7 @@
                     const isMarketOpen = (currentTimeVal >= 480 && currentTimeVal < 1410);
                     
                     if (isMarketOpen && !state.manualPause) {
+                        // 1.2초 업데이트 제한
                         if (Date.now() - state.lastUpdated > 1200) {
                             
                             let nextBasePrice = state.basePrice;
@@ -406,12 +417,43 @@
                                 nextBaseLabel = "어제보다";
                             }
 
+                            // === 시장 분위기 업데이트 로직 ===
+                            let currentMood = state.marketMood;
+                            let nextChange = state.nextMoodChange;
+                            
+                            // 시간이 다 되었으면 분위기 변경 (30분)
+                            if (Date.now() > nextChange) {
+                                const rand = Math.random();
+                                if (rand < 0.33) currentMood = 'bull'; // 상승장
+                                else if (rand < 0.66) currentMood = 'bear'; // 하락장
+                                else currentMood = 'neutral'; // 횡보장
+                                
+                                nextChange = Date.now() + (30 * 60 * 1000); // 30분 후
+                            }
+
+                            // === 가격 변동 계산 ===
                             let change = 0;
+                            
+                            // 1. 관리자 개입 (최우선)
                             if (state.adminTrend && state.adminTrendUntil > Date.now()) {
                                 if (state.adminTrend === 'up') { change = Math.floor(Math.random() * 6) + 2; } 
                                 else { change = Math.floor(Math.random() * -6) - 2; }
-                            } else {
-                                change = Math.floor(Math.random() * 11) - 5; 
+                            } 
+                            // 2. 시장 분위기에 따른 변동
+                            else {
+                                if (currentMood === 'bull') {
+                                    // 상승장: 오를 확률 65%, 내릴 확률 35%
+                                    // 범위: -3 ~ +6
+                                    change = Math.floor(Math.random() * 10) - 3; 
+                                } else if (currentMood === 'bear') {
+                                    // 하락장: 내릴 확률 65%, 오를 확률 35%
+                                    // 범위: -6 ~ +3
+                                    change = Math.floor(Math.random() * 10) - 6;
+                                } else {
+                                    // 횡보장: 50:50
+                                    change = Math.floor(Math.random() * 11) - 5;
+                                }
+                                
                                 if (change === 0) change = Math.random() > 0.5 ? 1 : -1;
                             }
 
@@ -425,11 +467,12 @@
                             let newTrendUntil = state.adminTrendUntil;
                             if (state.adminTrend && Date.now() > state.adminTrendUntil) { newTrend = null; }
 
-                            // === 낙관적 업데이트 (Optimistic Update) ===
-                            // 서버 응답 기다리지 않고 로컬 상태 즉시 반영
+                            // === 낙관적 업데이트 ===
                             state.currentPrice = nextPrice;
                             state.history = newHistory;
                             state.lastUpdated = Date.now();
+                            state.marketMood = currentMood;
+                            state.nextMoodChange = nextChange;
                             
                             if (state.chartOffset === 0) {
                                 updateUI();
@@ -443,14 +486,15 @@
                                     adminTrend: newTrend,
                                     adminTrendUntil: newTrendUntil,
                                     manualPause: state.manualPause,
-                                    basePriceLabel: nextBaseLabel
+                                    basePriceLabel: nextBaseLabel,
+                                    marketMood: currentMood,
+                                    nextMoodChange: nextChange
                                 });
                             } catch (e) {}
                         }
                     }
                 }, 1000);
                 
-                // 타이머 업데이트용 루프
                 setInterval(() => {
                     if (state.isAdmin) updateUI();
                 }, 500);
@@ -466,7 +510,9 @@
                         adminTrendUntil: 0,
                         manualPause: false,
                         basePrice: 100,
-                        basePriceLabel: "시작가보다"
+                        basePriceLabel: "시작가보다",
+                        marketMood: 'neutral',
+                        nextMoodChange: Date.now() + (30 * 60 * 1000)
                     });
                 } catch(e) {}
             };
@@ -519,7 +565,6 @@
 
 
             // === 3. 관리자 기능 ===
-            // 뒤로가기 (홈) 버튼
             els.btnHome.onclick = () => {
                 window.location.href = "https://won429.github.io/enjoysite/";
             };
