@@ -125,8 +125,8 @@
         <div class="flex justify-between items-start mb-2">
             <h1 class="text-2xl font-bold tracking-tight text-[#191f28] flex items-center gap-2">
                 엔조이
-                <!-- 알약 모양으로 개선 -->
-                <span class="text-[9px] font-bold text-white bg-[#f04452] px-2 py-0.5 rounded-full tracking-tight shadow-sm">2025.11.23 상장</span>
+                <!-- 알약 모양 수정: 글자 크기 살짝 키우고 패딩 조정 -->
+                <span class="text-[10px] font-bold text-white bg-[#f04452] px-1.5 py-0.5 rounded-full tracking-tight shadow-sm leading-tight">2025.11.23 상장</span>
                 <span id="sync-status" class="w-2 h-2 rounded-full bg-gray-300 ml-1 flex-shrink-0" title="서버 연결 상태"></span>
             </h1>
             
@@ -219,16 +219,16 @@
     <div id="admin-panel" class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 z-50 hidden shadow-[0_-5px_20px_rgba(0,0,0,0.1)] slide-up max-h-[40vh] overflow-y-auto">
         <div class="flex justify-between items-center mb-3">
             <h4 class="font-bold text-[#191f28] text-sm">🛠️ 관리자 모드</h4>
-            <span id="admin-timer" class="text-xs text-red-500 font-mono hidden">03:00</span>
+            <span id="admin-timer" class="text-xs text-red-500 font-mono hidden">00:30</span>
         </div>
         
         <!-- 추세 제어 -->
         <div class="grid grid-cols-2 gap-3 mb-3">
             <button id="btn-admin-up" class="bg-[#f04452] text-white font-bold py-3 rounded-xl active:scale-95 transition-transform shadow-lg shadow-red-200">
-                📈 상승 (3분)
+                📈 상승 (30초)
             </button>
             <button id="btn-admin-down" class="bg-[#3182f6] text-white font-bold py-3 rounded-xl active:scale-95 transition-transform shadow-lg shadow-blue-200">
-                📉 하락 (3분)
+                📉 하락 (30초)
             </button>
         </div>
 
@@ -430,11 +430,11 @@
             const setTrend = async (trend) => {
                 if (!state.isConnected) return;
                 const docRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'enjoy_ticker');
-                const duration = 3 * 60 * 1000; 
+                const duration = 30 * 1000; // 30초
                 try {
                     await window.updateDoc(docRef, { adminTrend: trend, adminTrendUntil: Date.now() + duration });
                     const label = trend === 'up' ? '상승' : '하락';
-                    showToast(`3분간 ${label} 추세가 적용됩니다.`);
+                    showToast(`30초간 ${label} 추세가 적용됩니다.`);
                 } catch (e) { showToast("명령 전송 실패"); }
             };
             
