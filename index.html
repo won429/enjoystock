@@ -359,6 +359,16 @@
             <button id="btn-market-resume" class="bg-green-500 text-white font-bold py-2 rounded-xl active:scale-95 transition-transform text-sm">🔔 장 재개</button>
             <button id="btn-market-pause" class="bg-gray-700 text-white font-bold py-2 rounded-xl active:scale-95 transition-transform text-sm">⏸ 장 일시정지</button>
         </div>
+        
+        <!-- 기준가(어제 마감가) 수동 설정 (추가됨) -->
+        <div class="bg-gray-50 p-3 rounded-xl mb-3 border border-gray-200">
+            <p class="text-xs font-bold text-gray-500 mb-2">💰 기준가(어제 마감가) 수동 설정</p>
+            <div class="flex gap-2">
+                <input type="number" id="base-price-input" placeholder="가격 입력" class="flex-1 bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500">
+                <button id="btn-admin-base-price" class="bg-[#333] text-white font-bold px-4 rounded-lg text-sm active:scale-95 transition-transform">설정</button>
+            </div>
+        </div>
+
         <div class="bg-gray-50 p-3 rounded-xl mb-3 border border-gray-200">
             <p class="text-xs font-bold text-gray-500 mb-2">💰 공용 지갑 입금 (관리자용)</p>
             <div class="flex gap-2">
@@ -401,7 +411,14 @@
                 wPrincipal: document.getElementById('w-principal'),
                 wCashRow: document.getElementById('w-cash-row'),
                 
-                btnBuy: document.getElementById('btn-buy'), btnSell: document.getElementById('btn-sell'), depositInput: document.getElementById('deposit-input'), btnAdminDeposit: document.getElementById('btn-admin-deposit'),
+                btnBuy: document.getElementById('btn-buy'), btnSell: document.getElementById('btn-sell'), 
+                
+                // Admin Inputs
+                depositInput: document.getElementById('deposit-input'), 
+                btnAdminDeposit: document.getElementById('btn-admin-deposit'),
+                basePriceInput: document.getElementById('base-price-input'), // New
+                btnAdminBasePrice: document.getElementById('btn-admin-base-price'), // New
+
                 historyList: document.getElementById('trade-history-list'), wHistoryList: document.getElementById('w-trade-history-list'),
                 
                 // Pending Orders
@@ -426,7 +443,7 @@
             };
 
             let state = {
-                currentPrice: 100, basePrice: 100, basePriceLabel: "시작가보다", history: [100], tab: 'chart',
+                currentPrice: 983, basePrice: 983, basePriceLabel: "시작가보다", history: [983], tab: 'chart',
                 lastUpdated: 0, isConnected: false, adminTrend: null, adminTrendUntil: 0, manualPause: false, isAdmin: false,
                 chartOffset: 0, isDragging: false, lastX: 0, marketMood: 'neutral', nextMoodChange: 0,
                 walletCash: 0, walletStocks: 0, walletAvgPrice: 0,
@@ -472,9 +489,20 @@
                 window.onSnapshot(docRef, (snapshot) => {
                     if (snapshot.exists()) {
                         const data = snapshot.data();
-                        state.currentPrice = data.currentPrice; state.history = data.history || [100]; state.lastUpdated = data.lastUpdated || 0;
+                        // FORCE OVERWRITE IF DATA IS FROM OLD TEST (100 WON)
+                        if (data.basePrice === 100) {
+                             window.updateDoc(docRef, {
+                                currentPrice: 983, 
+                                basePrice: 983, 
+                                history: [983],
+                                basePriceLabel: "어제보다"
+                            });
+                            return; // Skip this update, wait for next
+                        }
+
+                        state.currentPrice = data.currentPrice; state.history = data.history || [983]; state.lastUpdated = data.lastUpdated || 0;
                         state.adminTrend = data.adminTrend || null; state.adminTrendUntil = data.adminTrendUntil || 0; state.manualPause = data.manualPause || false;
-                        state.basePrice = data.basePrice || 100; state.basePriceLabel = data.basePriceLabel || "시작가보다";
+                        state.basePrice = data.basePrice || 983; state.basePriceLabel = data.basePriceLabel || "시작가보다";
                         state.marketMood = data.marketMood || 'neutral'; state.nextMoodChange = data.nextMoodChange || 0;
                         state.isConnected = true;
                         els.syncStatus.classList.remove('bg-gray-300', 'bg-red-500'); els.syncStatus.classList.add('bg-green-500');
@@ -491,9 +519,17 @@
                     
                     if (isMarketOpen) {
                         if (Date.now() - state.lastUpdated > 1200) {
-                            let nextBasePrice = state.basePrice; let nextBaseLabel = state.basePriceLabel;
+                            let nextBasePrice = state.basePrice; 
+                            let nextBaseLabel = state.basePriceLabel;
                             const now = new Date();
-                            if (now.getDate() > 23 && nextBasePrice === 100) nextBaseLabel = "어제보다";
+                            const lastDate = new Date(state.lastUpdated);
+
+                            // 날짜가 바뀌었으면 (새로운 장 시작)
+                            if (now.getDate() !== lastDate.getDate()) {
+                                nextBasePrice = state.currentPrice; // 현재가(어제 종가)를 기준가로 설정
+                                nextBaseLabel = "어제보다";
+                            }
+
                             let currentMood = state.marketMood; let nextChange = state.nextMoodChange;
                             
                             if (Date.now() > nextChange) {
@@ -527,7 +563,9 @@
                                 await window.updateDoc(docRef, {
                                     currentPrice: nextPrice, history: newHistory, lastUpdated: Date.now(),
                                     adminTrend: newTrend, adminTrendUntil: newTrendUntil, manualPause: state.manualPause,
-                                    basePriceLabel: nextBaseLabel, marketMood: currentMood, nextMoodChange: nextChange
+                                    basePrice: nextBasePrice, // Ensure basePrice is updated
+                                    basePriceLabel: nextBaseLabel, // Ensure basePriceLabel is updated
+                                    marketMood: currentMood, nextMoodChange: nextChange
                                 });
                             } catch (e) {}
                         }
@@ -537,7 +575,7 @@
             };
 
             const initializeData = async (docRef) => {
-                try { await window.setDoc(docRef, { currentPrice: 100, history: [100], lastUpdated: Date.now(), adminTrend: null, adminTrendUntil: 0, manualPause: false, basePrice: 100, basePriceLabel: "시작가보다", marketMood: 'neutral', nextMoodChange: Date.now() + 300000 }); } catch(e) {}
+                try { await window.setDoc(docRef, { currentPrice: 983, history: [983], lastUpdated: Date.now(), adminTrend: null, adminTrendUntil: 0, manualPause: false, basePrice: 983, basePriceLabel: "어제보다", marketMood: 'neutral', nextMoodChange: Date.now() + 300000 }); } catch(e) {}
             };
 
             const startWalletSync = () => {
@@ -670,9 +708,10 @@
                     const pending = data.pendingOrders || [];
                     const orderIndex = pending.findIndex(o => o.id === orderId);
                     
-                    if (orderIndex === -1) return;
+                    if (orderIndex === -1) return; // Already removed/executed
                     const order = pending[orderIndex];
                     
+                    // Refund
                     let newCash = data.cash || 0;
                     let newStocks = data.stocks || 0;
                     
@@ -739,6 +778,7 @@
                 const qty = parseInt(els.inputQty.value);
                 if (price <= 0 || qty <= 0) { showToast("가격과 수량을 확인해주세요."); return; }
                 
+                // placeOrder now returns boolean indicating success
                 const success = await placeOrder(state.tradeType, qty, price);
                 if (success) {
                     els.tradeModal.classList.add('hidden');
@@ -801,7 +841,7 @@
 
                         transaction.update(walletDocRef, { cash, stocks, avgPrice, pendingOrders: pending });
                     });
-                    success = true;
+                    success = true; // Transaction completed successfully
                 } catch(e) {
                     showToast(typeof e === 'string' ? e : "거래 실패");
                     success = false;
@@ -915,6 +955,22 @@
                     return;
                 }
                 openTradeModal('sell');
+            };
+
+            // --- Admin Base Price Logic ---
+            els.btnAdminBasePrice.onclick = async () => {
+                const price = parseInt(els.basePriceInput.value);
+                if (isNaN(price) || price <= 0) { showToast("올바른 가격을 입력하세요."); return; }
+                
+                const docRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'enjoy_ticker');
+                try {
+                    await window.updateDoc(docRef, {
+                        basePrice: price,
+                        basePriceLabel: "어제보다" // Force label update
+                    });
+                    showToast(`기준가가 ${fmt(price)}원으로 설정되었습니다.`);
+                    els.basePriceInput.value = '';
+                } catch(e) { console.error(e); showToast("설정 실패"); }
             };
 
             // --- 상단 버튼 및 관리자 로직 ---
