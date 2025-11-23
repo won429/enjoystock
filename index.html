@@ -854,6 +854,50 @@
                 });
             };
 
+            // --- Missing renderOrderBook function added here ---
+            const renderOrderBook = () => {
+                if(state.tab !== 'order') return;
+                
+                const asks = [];
+                const bids = [];
+                const gap = Math.max(1, Math.floor(state.currentPrice * 0.005)); 
+                
+                // Generate dummy order book data around current price
+                for(let i=5; i>=1; i--) {
+                    asks.push({ price: state.currentPrice + i * gap, vol: Math.floor(Math.random() * 50) + 1 });
+                }
+                for(let i=1; i<=5; i++) {
+                    bids.push({ price: state.currentPrice - i * gap, vol: Math.floor(Math.random() * 50) + 1 });
+                }
+
+                let html = '';
+                // Asks (Sell orders)
+                asks.forEach(item => {
+                    html += `
+                        <div class="order-row bg-ask">
+                            <div class="order-cell cell-ask-vol text-ask">${item.vol}</div>
+                            <div class="order-cell cell-price text-ask">${fmt(item.price)}</div>
+                            <div class="order-cell cell-bid-vol"></div>
+                            <div class="vol-bar vol-bar-ask" style="width:${Math.min(item.vol*2, 100)}%"></div>
+                        </div>
+                    `;
+                });
+
+                // Bids (Buy orders)
+                bids.forEach(item => {
+                    html += `
+                        <div class="order-row bg-bid">
+                            <div class="order-cell cell-ask-vol"></div>
+                            <div class="order-cell cell-price text-bid">${fmt(item.price)}</div>
+                            <div class="order-cell cell-bid-vol text-bid">${item.vol}</div>
+                            <div class="vol-bar vol-bar-bid" style="width:${Math.min(item.vol*2, 100)}%"></div>
+                        </div>
+                    `;
+                });
+                
+                els.orderList.innerHTML = html;
+            };
+
             els.btnBuy.onclick = () => openTradeModal('buy');
             els.btnSell.onclick = () => openTradeModal('sell');
 
