@@ -459,6 +459,14 @@
                 }
             });
 
+            // --- NEW: Market Status Helper ---
+            const checkMarketStatus = () => {
+                const now = new Date();
+                const currentTimeVal = now.getHours() * 60 + now.getMinutes();
+                const isTimeOpen = (currentTimeVal >= 480 && currentTimeVal < 1410); // 08:00 ~ 23:30
+                return isTimeOpen && !state.manualPause;
+            };
+
             const startSync = () => {
                 const docRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'enjoy_ticker');
                 window.onSnapshot(docRef, (snapshot) => {
@@ -479,13 +487,12 @@
 
                 setInterval(async () => {
                     if (!state.isConnected) return;
-                    const now = new Date();
-                    const currentTimeVal = now.getHours() * 60 + now.getMinutes();
-                    const isMarketOpen = (currentTimeVal >= 480 && currentTimeVal < 1410);
+                    const isMarketOpen = checkMarketStatus();
                     
-                    if (isMarketOpen && !state.manualPause) {
+                    if (isMarketOpen) {
                         if (Date.now() - state.lastUpdated > 1200) {
                             let nextBasePrice = state.basePrice; let nextBaseLabel = state.basePriceLabel;
+                            const now = new Date();
                             if (now.getDate() > 23 && nextBasePrice === 100) nextBaseLabel = "어제보다";
                             let currentMood = state.marketMood; let nextChange = state.nextMoodChange;
                             
@@ -854,7 +861,6 @@
                 });
             };
 
-            // --- Missing renderOrderBook function added here ---
             const renderOrderBook = () => {
                 if(state.tab !== 'order') return;
                 
@@ -862,7 +868,6 @@
                 const bids = [];
                 const gap = Math.max(1, Math.floor(state.currentPrice * 0.005)); 
                 
-                // Generate dummy order book data around current price
                 for(let i=5; i>=1; i--) {
                     asks.push({ price: state.currentPrice + i * gap, vol: Math.floor(Math.random() * 50) + 1 });
                 }
@@ -871,7 +876,6 @@
                 }
 
                 let html = '';
-                // Asks (Sell orders)
                 asks.forEach(item => {
                     html += `
                         <div class="order-row bg-ask">
@@ -883,7 +887,6 @@
                     `;
                 });
 
-                // Bids (Buy orders)
                 bids.forEach(item => {
                     html += `
                         <div class="order-row bg-bid">
@@ -898,8 +901,21 @@
                 els.orderList.innerHTML = html;
             };
 
-            els.btnBuy.onclick = () => openTradeModal('buy');
-            els.btnSell.onclick = () => openTradeModal('sell');
+            els.btnBuy.onclick = () => {
+                if (!checkMarketStatus()) {
+                    showToast("장 마감 시간에는 거래할 수 없습니다. (08:00 ~ 23:30)");
+                    return;
+                }
+                openTradeModal('buy');
+            };
+            
+            els.btnSell.onclick = () => {
+                if (!checkMarketStatus()) {
+                    showToast("장 마감 시간에는 거래할 수 없습니다. (08:00 ~ 23:30)");
+                    return;
+                }
+                openTradeModal('sell');
+            };
 
             // --- 상단 버튼 및 관리자 로직 ---
             els.btnHome.onclick = () => { window.location.href = 'https://won429.github.io/enjoysite/'; };
