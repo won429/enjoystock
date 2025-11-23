@@ -82,6 +82,9 @@
         .slide-up { animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
         
+        /* 장 마감 오버레이 */
+        #market-closed-overlay { backdrop-filter: blur(2px); }
+        
         /* 구분선 */
         .divider-section {
             border-top: 8px solid #f2f4f6;
@@ -102,6 +105,13 @@
     <div id="loading-overlay" class="fixed inset-0 bg-white z-[100] flex flex-col items-center justify-center transition-opacity duration-500">
         <div class="loader mb-4"></div>
         <p class="text-sm text-gray-500">서버 연결 중...</p>
+    </div>
+
+    <!-- 장 마감 오버레이 (차트 위에 표시) -->
+    <div id="market-closed-overlay" class="absolute top-20 left-0 right-0 bottom-0 bg-white/50 z-40 hidden flex items-center justify-center pointer-events-none">
+        <div class="bg-black/80 text-white px-4 py-2 rounded-full text-sm font-bold shadow-lg" id="market-msg">
+            🌙 장 마감 (08:00 ~ 23:30)
+        </div>
     </div>
 
     <!-- 로그인 모달 -->
@@ -161,10 +171,10 @@
         <!-- 차트 뷰 -->
         <div id="view-chart" class="flex flex-col h-full w-full relative">
             
-            <!-- 장 마감 알림 (차트 위에 표시) -->
+            <!-- 장 마감 알림 (차트 위에 표시 - 오버레이 아님) -->
             <div id="market-msg-container" class="absolute top-10 left-0 right-0 z-40 flex justify-center pointer-events-none hidden">
-                <div class="bg-black/70 backdrop-blur-sm text-white px-3 py-1.5 rounded-full text-xs font-bold shadow-sm flex items-center gap-2" id="market-msg">
-                    🌙 장 마감 (08:00 ~ 23:30)
+                <div class="bg-black/70 backdrop-blur-sm text-white px-3 py-1.5 rounded-full text-xs font-bold shadow-sm flex items-center gap-2" id="market-msg-badge">
+                    🌙 장 마감
                 </div>
             </div>
 
@@ -178,10 +188,6 @@
                 <div id="label-high" class="absolute text-[11px] text-[#3182f6] font-medium transition-all duration-300 pointer-events-none opacity-0">최고 <span id="val-high">100</span>원</div>
                 <div id="label-low" class="absolute text-[11px] text-[#3182f6] font-medium transition-all duration-300 pointer-events-none opacity-0">최저 <span id="val-low">100</span>원</div>
                 <div class="absolute left-0 right-0 border-t border-dashed border-[#e5e8eb]" style="top: 50%;" id="base-line"></div>
-                
-                <div id="admin-indicator" class="hidden absolute top-2 right-4 bg-black/70 text-white text-[10px] px-2 py-1 rounded-full backdrop-blur-md">
-                    ⚡ 관리자 개입 중
-                </div>
             </div>
             
             <!-- 구분선 -->
@@ -221,8 +227,11 @@
     <!-- 관리자 패널 -->
     <div id="admin-panel" class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 z-50 hidden shadow-[0_-5px_20px_rgba(0,0,0,0.1)] slide-up max-h-[40vh] overflow-y-auto">
         <div class="flex justify-between items-center mb-3">
-            <h4 class="font-bold text-[#191f28] text-sm">🛠️ 관리자 모드</h4>
-            <span id="admin-timer" class="text-xs text-red-500 font-mono hidden">00:30</span>
+            <div class="flex items-center gap-2">
+                <h4 class="font-bold text-[#191f28] text-sm">🛠️ 관리자 모드</h4>
+                <!-- 관리자용 타이머 (여기만 표시됨) -->
+                <span id="admin-timer" class="text-xs text-red-500 font-mono hidden bg-red-100 px-2 py-0.5 rounded-full">00:30</span>
+            </div>
         </div>
         
         <!-- 추세 제어 -->
@@ -286,12 +295,12 @@
                 btnAdminUp: document.getElementById('btn-admin-up'),
                 btnAdminDown: document.getElementById('btn-admin-down'),
                 btnLogout: document.getElementById('btn-logout'),
-                adminTimer: document.getElementById('admin-timer'),
-                adminIndicator: document.getElementById('admin-indicator'),
+                adminTimer: document.getElementById('admin-timer'), // 관리자용 타이머 (복구)
+                // adminIndicator: document.getElementById('admin-indicator'), // 삭제됨
                 btnMarketResume: document.getElementById('btn-market-resume'),
                 btnMarketPause: document.getElementById('btn-market-pause'),
                 marketMsgContainer: document.getElementById('market-msg-container'),
-                marketMsg: document.getElementById('market-msg'),
+                marketMsgBadge: document.getElementById('market-msg-badge'),
                 chartStatus: document.getElementById('chart-status-text')
             };
 
@@ -380,6 +389,7 @@
                     const currentTimeVal = hours * 60 + minutes;
                     const isMarketOpen = (currentTimeVal >= 480 && currentTimeVal < 1410);
                     
+                    // 장이 열려있고 && 수동 정지가 아닐 때만 데이터 업데이트
                     if (isMarketOpen && !state.manualPause) {
                         if (Date.now() - state.lastUpdated > 1200) {
                             
@@ -469,8 +479,8 @@
                     els.liveDot.classList.replace('bg-[#3182f6]', 'bg-gray-400');
                 } else {
                     els.chartStatus.innerText = "실시간";
-                    els.liveDot.classList.add('animate-pulse');
-                    els.liveDot.classList.replace('bg-gray-400', 'bg-[#3182f6]');
+                    // 실시간 모드로 돌아오면 다시 깜빡임 처리 (장 상태에 따라 다름)
+                    updateUI(); 
                 }
             };
             
@@ -515,6 +525,7 @@
                 try {
                     await window.updateDoc(docRef, { adminTrend: trend, adminTrendUntil: Date.now() + duration });
                     const label = trend === 'up' ? '상승' : '하락';
+                    // 스텔스 모드: 알림은 띄우지만 화면에 표시는 안 함
                     showToast(`30초간 ${label} 추세가 적용됩니다.`);
                 } catch (e) { showToast("명령 전송 실패"); }
             };
@@ -615,7 +626,6 @@
                 const maxPos = { x: maxIdx * step, y: h - ((maxValData - minVal) / range) * h };
                 const minPos = { x: minIdx * step, y: h - ((minValData - minVal) / range) * h };
                 
-                // 라벨 위치 제한 (패딩 고려)
                 const labelX_Max = Math.min(Math.max(maxPos.x, 30), w - 30);
                 const labelX_Min = Math.min(Math.max(minPos.x, 30), w - 30);
                 els.labelHigh.style.opacity = 1; els.labelHigh.style.left = `${labelX_Max}px`; els.labelHigh.style.top = `${maxPos.y - 25}px`;
@@ -679,28 +689,30 @@
                 const isMarketOpen = (currentTimeVal >= 480 && currentTimeVal < 1410); 
 
                 if (!isMarketOpen || state.manualPause) {
-                    els.marketMsgContainer.classList.remove('hidden'); // 상단 배지로 표시
+                    els.marketMsgContainer.classList.remove('hidden'); 
                     els.liveDot.classList.remove('animate-pulse');
                     els.liveDot.classList.replace('bg-[#3182f6]', 'bg-gray-400');
-                    if (state.manualPause) els.marketMsg.innerText = "⏸ 장 일시정지됨";
-                    else els.marketMsg.innerText = "🌙 장 마감 (08:00 ~ 23:30)";
+                    els.chartStatus.innerText = "일시정지됨"; // 상태 텍스트도 변경
+                    
+                    if (state.manualPause) els.marketMsgBadge.innerText = "⏸ 장 일시정지됨";
+                    else els.marketMsgBadge.innerText = "🌙 장 마감 (08:00 ~ 23:30)";
                 } else {
                     els.marketMsgContainer.classList.add('hidden');
                     if (state.chartOffset === 0) {
                         els.liveDot.classList.add('animate-pulse');
                         els.liveDot.classList.replace('bg-gray-400', 'bg-[#3182f6]');
+                        els.chartStatus.innerText = "실시간";
                     }
                 }
 
+                // 관리자 타이머
                 if (state.adminTrend && state.adminTrendUntil > Date.now()) {
-                    els.adminIndicator.classList.remove('hidden');
                     const timeLeft = Math.ceil((state.adminTrendUntil - Date.now()) / 1000);
                     const mins = Math.floor(timeLeft / 60);
                     const secs = timeLeft % 60;
                     els.adminTimer.innerText = `${mins}:${secs < 10 ? '0'+secs : secs}`;
                     els.adminTimer.classList.remove('hidden');
                 } else {
-                    els.adminIndicator.classList.add('hidden');
                     els.adminTimer.classList.add('hidden');
                 }
 
