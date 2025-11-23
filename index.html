@@ -342,7 +342,7 @@
                 isDragging: false,
                 lastX: 0,
                 
-                // 시장 분위기 (30분마다 변경)
+                // 시장 분위기 (10분마다 변경)
                 marketMood: 'neutral', // 'bull' (상승장), 'bear' (하락장), 'neutral' (횡보)
                 nextMoodChange: 0 // 다음 분위기 변경 시간
             };
@@ -421,14 +421,14 @@
                             let currentMood = state.marketMood;
                             let nextChange = state.nextMoodChange;
                             
-                            // 시간이 다 되었으면 분위기 변경 (30분)
+                            // 시간이 다 되었으면 분위기 변경 (10분 = 600,000ms)
                             if (Date.now() > nextChange) {
                                 const rand = Math.random();
                                 if (rand < 0.33) currentMood = 'bull'; // 상승장
                                 else if (rand < 0.66) currentMood = 'bear'; // 하락장
                                 else currentMood = 'neutral'; // 횡보장
                                 
-                                nextChange = Date.now() + (30 * 60 * 1000); // 30분 후
+                                nextChange = Date.now() + (10 * 60 * 1000); // 10분 후
                             }
 
                             // === 가격 변동 계산 ===
@@ -442,12 +442,10 @@
                             // 2. 시장 분위기에 따른 변동
                             else {
                                 if (currentMood === 'bull') {
-                                    // 상승장: 오를 확률 65%, 내릴 확률 35%
-                                    // 범위: -3 ~ +6
+                                    // 상승장: 오를 확률 65%
                                     change = Math.floor(Math.random() * 10) - 3; 
                                 } else if (currentMood === 'bear') {
-                                    // 하락장: 내릴 확률 65%, 오를 확률 35%
-                                    // 범위: -6 ~ +3
+                                    // 하락장: 내릴 확률 65%
                                     change = Math.floor(Math.random() * 10) - 6;
                                 } else {
                                     // 횡보장: 50:50
@@ -512,7 +510,7 @@
                         basePrice: 100,
                         basePriceLabel: "시작가보다",
                         marketMood: 'neutral',
-                        nextMoodChange: Date.now() + (30 * 60 * 1000)
+                        nextMoodChange: Date.now() + (10 * 60 * 1000)
                     });
                 } catch(e) {}
             };
