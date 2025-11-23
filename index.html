@@ -268,25 +268,45 @@
             <div id="order-book-list" class="flex flex-col w-full"></div>
         </div>
 
-        <!-- 보유자산 뷰 -->
-        <div id="view-wallet" class="hidden flex-col w-full px-5 pt-4">
-             <div class="bg-[#f9fafb] rounded-2xl p-6 border border-[#f2f4f6] shadow-sm mb-6">
-                <p class="text-sm text-[#8b95a1] mb-1 flex items-center gap-1">🤝 우리들의 공용 계좌 잔고</p>
-                <h2 class="text-3xl font-bold text-[#191f28] mb-4"><span id="w-my-cash">0</span>원</h2>
-                <div class="flex gap-4 border-t border-[#e5e8eb] pt-4">
-                    <div class="flex-1">
-                        <span class="block text-xs text-[#8b95a1] mb-1">보유 엔조이</span>
-                        <span class="block text-lg font-bold text-[#191f28]"><span id="w-my-stock-cnt">0</span>주</span>
+        <!-- 보유자산 뷰 (새로운 디자인 적용) -->
+        <div id="view-wallet" class="hidden flex-col w-full px-6 pt-10">
+            <!-- 1주 평균금액 -->
+            <div class="mb-8">
+                <p class="text-sm font-medium text-gray-500 mb-1">1주 평균금액</p>
+                <div class="flex items-end gap-1">
+                    <h2 class="text-4xl font-bold text-[#191f28] tracking-tight"><span id="w-avg-price-big">0</span>원</h2>
+                </div>
+            </div>
+
+            <!-- 상세 리스트 -->
+            <div class="flex flex-col divide-y divide-gray-100 border-t border-b border-gray-100">
+                <!-- 보유 수량 -->
+                <div class="flex justify-between items-center py-5">
+                    <span class="text-gray-500 font-medium">보유 수량</span>
+                    <span class="text-[#191f28] font-bold text-lg"><span id="w-stock-qty">0</span>주</span>
+                </div>
+                <!-- 총 평가금액 (평가금액 + 손익 + 수익률) -->
+                <div class="flex justify-between items-start py-5">
+                    <span class="text-gray-500 font-medium mt-1">총 평가금액</span>
+                    <div class="text-right">
+                        <div class="text-[#191f28] font-bold text-lg mb-0.5"><span id="w-total-val">0</span>원</div>
+                        <div class="text-sm font-medium" id="w-pl-info">0 (0.0%)</div>
                     </div>
-                    <div class="flex-1 text-right">
-                        <span class="block text-xs text-[#8b95a1] mb-1">수익률 (평단 <span id="w-my-avg-price">0</span>)</span>
-                        <span class="block text-lg font-bold" id="w-my-return-rate">0%</span>
-                    </div>
+                </div>
+                <!-- 투자 원금 -->
+                <div class="flex justify-between items-center py-5">
+                    <span class="text-gray-500 font-medium">투자 원금</span>
+                    <span class="text-[#191f28] font-bold text-lg"><span id="w-principal">0</span>원</span>
+                </div>
+                <!-- 보유 현금 (추가) -->
+                <div class="flex justify-between items-center py-5">
+                    <span class="text-gray-500 font-medium">보유 현금</span>
+                    <span class="text-[#191f28] font-bold text-lg"><span id="w-cash-row">0</span>원</span>
                 </div>
             </div>
             
-            <!-- 미체결 내역 추가 -->
-            <div class="mb-6">
+            <!-- 미체결 내역 -->
+            <div class="mt-10">
                 <h3 class="text-sm font-bold text-[#191f28] mb-3 flex items-center gap-2">
                     ⏳ 미체결 주문
                     <span id="pending-count" class="bg-gray-100 text-gray-600 text-[10px] px-1.5 py-0.5 rounded-full">0</span>
@@ -296,7 +316,7 @@
                 </div>
             </div>
 
-            <div class="mb-8">
+            <div class="mt-8 mb-20">
                 <h3 class="text-sm font-bold text-[#191f28] mb-3">📋 실시간 체결 내역</h3>
                 <div id="w-trade-history-list" class="flex flex-col">
                     <div class="text-center py-4 text-xs text-gray-400">불러오는 중...</div>
@@ -371,9 +391,15 @@
                 adminPanel: document.getElementById('admin-panel'), btnAdminUp: document.getElementById('btn-admin-up'), btnAdminDown: document.getElementById('btn-admin-down'), btnLogout: document.getElementById('btn-logout'), adminTimer: document.getElementById('admin-timer'),
                 btnMarketResume: document.getElementById('btn-market-resume'), btnMarketPause: document.getElementById('btn-market-pause'),
                 marketMsgContainer: document.getElementById('market-msg-container'), marketMsgBadge: document.getElementById('market-msg-badge'), chartStatus: document.getElementById('chart-status-text'),
-                // Wallet & History
+                // Wallet & History (Chart View)
                 myCash: document.getElementById('my-cash'), myStockCnt: document.getElementById('my-stock-cnt'), myAvgPrice: document.getElementById('my-avg-price'), myReturnRate: document.getElementById('my-return-rate'),
-                wMyCash: document.getElementById('w-my-cash'), wMyStockCnt: document.getElementById('w-my-stock-cnt'), wMyAvgPrice: document.getElementById('w-my-avg-price'), wMyReturnRate: document.getElementById('w-my-return-rate'),
+                // Wallet & History (Wallet View - New)
+                wAvgPriceBig: document.getElementById('w-avg-price-big'),
+                wStockQty: document.getElementById('w-stock-qty'),
+                wTotalVal: document.getElementById('w-total-val'),
+                wPlInfo: document.getElementById('w-pl-info'),
+                wPrincipal: document.getElementById('w-principal'),
+                wCashRow: document.getElementById('w-cash-row'),
                 
                 btnBuy: document.getElementById('btn-buy'), btnSell: document.getElementById('btn-sell'), depositInput: document.getElementById('deposit-input'), btnAdminDeposit: document.getElementById('btn-admin-deposit'),
                 historyList: document.getElementById('trade-history-list'), wHistoryList: document.getElementById('w-trade-history-list'),
@@ -565,16 +591,41 @@
                 const txtCash = fmt(state.walletCash);
                 const txtStocks = fmt(state.walletStocks);
                 const txtAvg = fmt(Math.round(state.walletAvgPrice));
-                let txtRate = "0%";
-                let clsRate = "text-xs font-bold text-gray-400";
+                
+                let returnRate = 0;
+                let plValue = 0;
+                let plRateStr = "0%";
+                let plClass = "text-gray-400";
 
                 if (state.walletStocks > 0 && state.walletAvgPrice > 0) {
-                    const returnRate = ((state.currentPrice - state.walletAvgPrice) / state.walletAvgPrice) * 100;
-                    txtRate = `${returnRate > 0 ? '+' : ''}${returnRate.toFixed(2)}%`;
-                    clsRate = `text-xs font-bold ${returnRate >= 0 ? 'text-[#f04452]' : 'text-[#3182f6]'}`;
+                    const currentVal = state.currentPrice * state.walletStocks;
+                    const principal = state.walletAvgPrice * state.walletStocks;
+                    plValue = currentVal - principal;
+                    returnRate = (plValue / principal) * 100;
+                    plRateStr = `${returnRate > 0 ? '+' : ''}${returnRate.toFixed(1)}%`;
+                    plClass = returnRate >= 0 ? 'text-[#f04452]' : 'text-[#3182f6]';
                 }
-                els.myCash.innerText = txtCash; els.myStockCnt.innerText = txtStocks; els.myAvgPrice.innerText = txtAvg; els.myReturnRate.innerText = txtRate; els.myReturnRate.className = clsRate;
-                els.wMyCash.innerText = txtCash; els.wMyStockCnt.innerText = txtStocks; els.wMyAvgPrice.innerText = txtAvg; els.wMyReturnRate.innerText = txtRate; els.wMyReturnRate.className = clsRate;
+
+                // Chart View Update
+                els.myCash.innerText = txtCash; 
+                els.myStockCnt.innerText = txtStocks; 
+                els.myAvgPrice.innerText = txtAvg; 
+                els.myReturnRate.innerText = plRateStr; 
+                els.myReturnRate.className = `text-xs font-bold ${plClass}`;
+
+                // New Wallet View Update
+                els.wAvgPriceBig.innerText = txtAvg;
+                els.wStockQty.innerText = txtStocks;
+                
+                const totalStockVal = state.walletStocks * state.currentPrice;
+                els.wTotalVal.innerText = fmt(totalStockVal);
+                
+                const plSign = plValue > 0 ? '+' : '';
+                els.wPlInfo.innerHTML = `<span class="${plClass}">${plSign}${fmt(plValue)} (${plRateStr})</span>`;
+                
+                const principalVal = Math.round(state.walletAvgPrice * state.walletStocks);
+                els.wPrincipal.innerText = fmt(principalVal);
+                els.wCashRow.innerText = txtCash;
 
                 renderPendingOrders();
             };
@@ -681,7 +732,6 @@
                 const qty = parseInt(els.inputQty.value);
                 if (price <= 0 || qty <= 0) { showToast("가격과 수량을 확인해주세요."); return; }
                 
-                // placeOrder now returns boolean indicating success
                 const success = await placeOrder(state.tradeType, qty, price);
                 if (success) {
                     els.tradeModal.classList.add('hidden');
@@ -744,7 +794,7 @@
 
                         transaction.update(walletDocRef, { cash, stocks, avgPrice, pendingOrders: pending });
                     });
-                    success = true; // Transaction completed successfully
+                    success = true;
                 } catch(e) {
                     showToast(typeof e === 'string' ? e : "거래 실패");
                     success = false;
