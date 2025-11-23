@@ -456,21 +456,15 @@
                 const deltaX = x - state.lastX;
                 state.lastX = x;
                 
-                // 감도 조절 (빠르게 스크롤)
                 const sensitivity = 2; 
-                // 왼쪽으로 드래그(-delta) -> 과거를 봐야함 -> offset 증가
-                // 오른쪽으로 드래그(+delta) -> 최근을 봐야함 -> offset 감소
                 state.chartOffset -= Math.round(deltaX / 5 * sensitivity); 
                 
-                // 경계 처리
-                if (state.chartOffset < 0) state.chartOffset = 0; // 가장 최신
-                // 데이터 길이보다 더 과거로 못가게 (화면에 보여줄 최소 개수 30개 유지)
+                if (state.chartOffset < 0) state.chartOffset = 0; 
                 const maxOffset = Math.max(0, state.history.length - 30);
                 if (state.chartOffset > maxOffset) state.chartOffset = maxOffset;
                 
                 drawChart();
                 
-                // 실시간 여부 UI 업데이트
                 if (state.chartOffset > 0) {
                     els.chartStatus.innerText = "과거 기록 조회 중";
                     els.liveDot.classList.remove('animate-pulse');
@@ -488,12 +482,10 @@
                 els.chartContainer.classList.add('cursor-grab');
             };
 
-            // 마우스 이벤트
             els.chartContainer.addEventListener('mousedown', e => handleStart(e.clientX));
             window.addEventListener('mousemove', e => handleMove(e.clientX));
             window.addEventListener('mouseup', handleEnd);
             
-            // 터치 이벤트
             els.chartContainer.addEventListener('touchstart', e => handleStart(e.touches[0].clientX));
             window.addEventListener('touchmove', e => handleMove(e.touches[0].clientX));
             window.addEventListener('touchend', handleEnd);
@@ -563,15 +555,11 @@
                 ctx.clearRect(0, 0, w, h);
 
                 const fullHistory = state.history;
-                
-                // 보여줄 데이터 개수 (화면에 꽉 차게)
                 const viewCount = 60; 
                 
-                // 데이터 슬라이싱 (오프셋 적용)
                 let endIdx = fullHistory.length - state.chartOffset;
                 let startIdx = Math.max(0, endIdx - viewCount);
                 
-                // 데이터가 부족하면 0부터 시작
                 if (endIdx < viewCount) {
                     endIdx = Math.min(viewCount, fullHistory.length);
                     startIdx = 0;
@@ -579,12 +567,11 @@
                 
                 const data = fullHistory.slice(startIdx, endIdx);
                 
-                if (data.length < 2) return; // 데이터 부족 시 중단
+                if (data.length < 2) return; 
 
                 let minVal = Math.min(...data);
                 let maxVal = Math.max(...data);
                 
-                // 기준가 포함
                 minVal = Math.min(minVal, state.basePrice);
                 maxVal = Math.max(maxVal, state.basePrice);
 
@@ -592,12 +579,10 @@
                 else { const padding = (maxVal - minVal) * 0.1; maxVal += padding; minVal -= padding; }
                 const range = maxVal - minVal;
                 
-                // 기준선
                 const baseY = h - ((state.basePrice - minVal) / range) * h;
                 els.baseLine.style.top = `${(baseY / h) * 100}%`;
                 els.baseLine.classList.remove('hidden');
 
-                // 색상 결정 (화면상 마지막 값 vs 기준가)
                 const lastVal = data[data.length - 1];
                 const isUp = lastVal >= state.basePrice;
                 const color = isUp ? '#f04452' : '#3182f6';
@@ -606,7 +591,10 @@
 
                 ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
                 
-                const step = w / (viewCount - 1); // 고정된 간격
+                // 패딩 추가: 차트가 오른쪽 끝에 닿지 않게 함 (약 40px)
+                const paddingRight = 40; 
+                // 스텝 계산 시 유효 너비를 줄여서 계산
+                const step = (w - paddingRight) / (viewCount - 1); 
                 
                 data.forEach((p, i) => {
                     const x = i * step; const y = h - ((p - minVal) / range) * h;
@@ -621,7 +609,6 @@
                 grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
                 ctx.fillStyle = grad; ctx.fill();
 
-                // 라벨 업데이트
                 const maxValData = Math.max(...data); const minValData = Math.min(...data);
                 els.valHigh.innerText = Math.round(maxValData); els.valLow.innerText = Math.round(minValData);
                 
@@ -630,6 +617,7 @@
                 const maxPos = { x: maxIdx * step, y: h - ((maxValData - minVal) / range) * h };
                 const minPos = { x: minIdx * step, y: h - ((minValData - minVal) / range) * h };
                 
+                // 라벨 위치 제한 (패딩 고려)
                 const labelX_Max = Math.min(Math.max(maxPos.x, 30), w - 30);
                 const labelX_Min = Math.min(Math.max(minPos.x, 30), w - 30);
                 els.labelHigh.style.opacity = 1; els.labelHigh.style.left = `${labelX_Max}px`; els.labelHigh.style.top = `${maxPos.y - 25}px`;
@@ -637,7 +625,7 @@
                 
                 [maxPos, minPos].forEach(pos => { ctx.beginPath(); ctx.fillStyle = 'white'; ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.arc(pos.x, pos.y, 3, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); });
                 
-                // 마지막 점 (오프셋이 0일 때만 펄스 효과)
+                // 마지막 점
                 const lastX = (data.length - 1) * step; const lastY = h - ((lastVal - minVal) / range) * h;
                 ctx.beginPath(); ctx.fillStyle = color; ctx.arc(lastX, lastY, 4, 0, Math.PI * 2); ctx.fill();
             };
@@ -700,7 +688,6 @@
                     else els.marketMsg.innerText = "🌙 장 마감 (08:00 ~ 23:30)";
                 } else {
                     els.marketOverlay.classList.add('hidden');
-                    // 오프셋이 0일 때만(실시간일 때만) 펄스
                     if (state.chartOffset === 0) {
                         els.liveDot.classList.add('animate-pulse');
                         els.liveDot.classList.replace('bg-gray-400', 'bg-[#3182f6]');
