@@ -52,7 +52,7 @@
         }
 
         /* 탭 메뉴 */
-        .tab-item { position: relative; color: #8b95a1; font-weight: 600; cursor: pointer; transition: color 0.2s; }
+        .tab-item { position: relative; color: #8b95a1; font-weight: 600; cursor: pointer; transition: color 0.2s; white-space: nowrap; }
         .tab-item.active { color: #191f28; }
         .tab-item.active::after { content: ''; position: absolute; bottom: -11px; left: 0; right: 0; height: 2px; background-color: #191f28; }
 
@@ -91,6 +91,10 @@
         .log-buy { background-color: #fff4f4; color: #f04452; }
         .log-sell { background-color: #f4f9ff; color: #3182f6; }
         .log-deposit { background-color: #f2f4f6; color: #333; }
+
+        /* Stepper Input Style */
+        .stepper-btn { width: 32px; height: 32px; border-radius: 8px; background: #f2f4f6; color: #333; font-weight: bold; display: flex; align-items: center; justify-content: center; }
+        .stepper-btn:active { background: #d1d6db; }
     </style>
 </head>
 <body class="flex flex-col h-[100dvh] w-screen relative">
@@ -123,6 +127,46 @@
         </div>
     </div>
 
+    <!-- 주문(매수/매도) 모달 -->
+    <div id="trade-modal" class="fixed inset-0 bg-black/50 z-[60] hidden flex items-end justify-center backdrop-blur-sm">
+        <div class="bg-white rounded-t-3xl w-full max-w-md p-6 shadow-2xl slide-up">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold" id="trade-modal-title">매수하기</h3>
+                <button id="btn-trade-close" class="p-2 text-gray-400 hover:text-gray-600">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+
+            <!-- 가격 입력 -->
+            <div class="mb-4">
+                <label class="block text-xs font-bold text-gray-500 mb-1">가격 (원)</label>
+                <div class="flex items-center gap-3">
+                    <button class="stepper-btn" id="btn-price-down">-</button>
+                    <input type="number" id="input-price" class="flex-1 text-center text-xl font-bold py-2 border-b-2 border-gray-100 outline-none focus:border-[#3182f6]" value="0">
+                    <button class="stepper-btn" id="btn-price-up">+</button>
+                </div>
+            </div>
+
+            <!-- 수량 입력 -->
+            <div class="mb-6">
+                <label class="block text-xs font-bold text-gray-500 mb-1">수량 (주)</label>
+                <div class="flex items-center gap-3">
+                    <button class="stepper-btn" id="btn-qty-down">-</button>
+                    <input type="number" id="input-qty" class="flex-1 text-center text-xl font-bold py-2 border-b-2 border-gray-100 outline-none focus:border-[#3182f6]" value="1">
+                    <button class="stepper-btn" id="btn-qty-up">+</button>
+                </div>
+            </div>
+
+            <!-- 예상 금액 -->
+            <div class="bg-gray-50 rounded-xl p-4 mb-4 flex justify-between items-center">
+                <span class="text-sm font-bold text-gray-500">총 주문 금액</span>
+                <span class="text-lg font-bold text-[#191f28]"><span id="trade-total-amount">0</span>원</span>
+            </div>
+
+            <button id="btn-trade-confirm" class="w-full py-4 rounded-xl font-bold text-white text-lg bg-[#3182f6] shadow-lg active:scale-95 transition-transform">매수하기</button>
+        </div>
+    </div>
+
     <!-- 헤더 -->
     <header class="px-5 pt-8 pb-2 bg-white z-20">
         <div class="flex justify-between items-start mb-2">
@@ -150,14 +194,15 @@
         </div>
     </header>
 
-    <!-- 탭 메뉴 -->
-    <div class="flex items-center px-5 border-b border-[#f2f4f6] gap-6 text-[15px] mb-6 bg-white z-10">
-        <button id="tab-chart" class="tab-item active py-2.5">차트</button>
-        <button id="tab-order" class="tab-item py-2.5">호가</button>
-        <button id="tab-info" class="tab-item py-2.5">종목정보</button>
+    <!-- 탭 메뉴 (수정됨: 보유자산 추가) -->
+    <div class="flex items-center px-5 border-b border-[#f2f4f6] gap-5 text-[15px] mb-6 bg-white z-10 overflow-x-auto scrollbar-hide">
+        <button id="tab-chart" class="tab-item active py-2.5 flex-shrink-0">차트</button>
+        <button id="tab-order" class="tab-item py-2.5 flex-shrink-0">호가</button>
+        <button id="tab-wallet" class="tab-item py-2.5 flex-shrink-0">보유자산</button>
+        <button id="tab-info" class="tab-item py-2.5 flex-shrink-0">종목정보</button>
     </div>
 
-    <!-- 메인 컨텐츠 (스크롤 가능하도록 수정됨) -->
+    <!-- 메인 컨텐츠 -->
     <main class="flex-1 flex flex-col relative overflow-y-auto bg-white pb-36 scrollbar-hide"> 
         
         <!-- 차트 뷰 -->
@@ -172,7 +217,7 @@
                 <span class="text-xs font-medium text-[#8b95a1]" id="chart-status-text">실시간</span>
             </div>
             
-            <!-- 차트 영역 (가로 드래그를 위해 touch-action: pan-y 적용) -->
+            <!-- 차트 영역 -->
             <div class="w-full h-[280px] relative mt-2 touch-pan-y cursor-grab active:cursor-grabbing" id="chart-container">
                 <canvas id="chart-canvas" class="w-full h-full block"></canvas>
                 <div id="label-high" class="absolute text-[11px] text-[#3182f6] font-medium transition-all duration-300 pointer-events-none opacity-0">최고 <span id="val-high"></span></div>
@@ -180,20 +225,15 @@
                 <div class="absolute left-0 right-0 border-t border-dashed border-[#e5e8eb]" style="top: 50%;" id="base-line"></div>
             </div>
             
-            <!-- 구분선 -->
             <div class="divider-section mx-5">
                 <p class="text-[10px] text-gray-300 mb-2">차트를 좌우로 드래그하여 과거 기록을 확인하세요</p>
             </div>
 
-            <!-- 내 자산 섹션 (공용) -->
+            <!-- 내 자산 섹션 (차트 하단용) -->
             <div class="px-5 mt-2">
-                <!-- 공용 계좌 메인 표시 -->
                 <div class="bg-[#f9fafb] rounded-2xl p-6 border border-[#f2f4f6] shadow-sm">
-                    <p class="text-sm text-[#8b95a1] mb-1 flex items-center gap-1">
-                        🤝 우리들의 공용 계좌 잔고
-                    </p>
+                    <p class="text-sm text-[#8b95a1] mb-1 flex items-center gap-1">🤝 우리들의 공용 계좌 잔고</p>
                     <h2 class="text-3xl font-bold text-[#191f28] mb-4"><span id="my-cash">0</span>원</h2>
-                    
                     <div class="flex gap-4 border-t border-[#e5e8eb] pt-4">
                         <div class="flex-1">
                             <span class="block text-xs text-[#8b95a1] mb-1">보유 엔조이</span>
@@ -205,13 +245,9 @@
                         </div>
                     </div>
                 </div>
-
-                <!-- 주문 내역 (로그) -->
                 <div class="mt-8 mb-8">
                     <h3 class="text-sm font-bold text-[#191f28] mb-3">📋 실시간 체결 내역</h3>
-                    <div id="trade-history-list" class="flex flex-col">
-                        <div class="text-center py-4 text-xs text-gray-400">아직 거래 내역이 없습니다.</div>
-                    </div>
+                    <div id="trade-history-list" class="flex flex-col"></div>
                 </div>
             </div>
         </div>
@@ -222,6 +258,30 @@
                 <div class="text-center">매도잔량</div><div class="text-center">호가</div><div class="text-center">매수잔량</div>
             </div>
             <div id="order-book-list" class="flex flex-col w-full"></div>
+        </div>
+
+        <!-- 보유자산 뷰 (신규 추가) -->
+        <div id="view-wallet" class="hidden flex-col w-full px-5 pt-4">
+             <div class="bg-[#f9fafb] rounded-2xl p-6 border border-[#f2f4f6] shadow-sm mb-6">
+                <p class="text-sm text-[#8b95a1] mb-1 flex items-center gap-1">🤝 우리들의 공용 계좌 잔고</p>
+                <h2 class="text-3xl font-bold text-[#191f28] mb-4"><span id="w-my-cash">0</span>원</h2>
+                <div class="flex gap-4 border-t border-[#e5e8eb] pt-4">
+                    <div class="flex-1">
+                        <span class="block text-xs text-[#8b95a1] mb-1">보유 엔조이</span>
+                        <span class="block text-lg font-bold text-[#191f28]"><span id="w-my-stock-cnt">0</span>주</span>
+                    </div>
+                    <div class="flex-1 text-right">
+                        <span class="block text-xs text-[#8b95a1] mb-1">수익률 (평단 <span id="w-my-avg-price">0</span>)</span>
+                        <span class="block text-lg font-bold" id="w-my-return-rate">0%</span>
+                    </div>
+                </div>
+            </div>
+            <div class="mb-8">
+                <h3 class="text-sm font-bold text-[#191f28] mb-3">📋 실시간 체결 내역</h3>
+                <div id="w-trade-history-list" class="flex flex-col">
+                    <div class="text-center py-4 text-xs text-gray-400">불러오는 중...</div>
+                </div>
+            </div>
         </div>
 
         <!-- 종목정보 뷰 -->
@@ -245,6 +305,7 @@
 
     <!-- 관리자 패널 -->
     <div id="admin-panel" class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 z-50 hidden shadow-[0_-5px_20px_rgba(0,0,0,0.1)] slide-up max-h-[60vh] overflow-y-auto">
+        <!-- ... 기존 관리자 패널 내용 ... -->
         <div class="flex justify-between items-center mb-3">
             <div class="flex items-center gap-2">
                 <h4 class="font-bold text-[#191f28] text-sm">🛠️ 관리자 모드</h4>
@@ -278,8 +339,11 @@
                 labelHigh: document.getElementById('label-high'), labelLow: document.getElementById('label-low'), valHigh: document.getElementById('val-high'), valLow: document.getElementById('val-low'),
                 baseLine: document.getElementById('base-line'), liveDot: document.getElementById('live-dot'),
                 orderList: document.getElementById('order-book-list'),
-                viewChart: document.getElementById('view-chart'), viewOrder: document.getElementById('view-order'), viewInfo: document.getElementById('view-info'),
-                tabChart: document.getElementById('tab-chart'), tabOrder: document.getElementById('tab-order'), tabInfo: document.getElementById('tab-info'),
+                // Views
+                viewChart: document.getElementById('view-chart'), viewOrder: document.getElementById('view-order'), viewInfo: document.getElementById('view-info'), viewWallet: document.getElementById('view-wallet'),
+                // Tabs
+                tabChart: document.getElementById('tab-chart'), tabOrder: document.getElementById('tab-order'), tabInfo: document.getElementById('tab-info'), tabWallet: document.getElementById('tab-wallet'),
+                
                 toastContainer: document.getElementById('toast-container'), loadingOverlay: document.getElementById('loading-overlay'), syncStatus: document.getElementById('sync-status'),
                 btnProfile: document.getElementById('btn-profile'), btnHome: document.getElementById('btn-home'),
                 loginModal: document.getElementById('login-modal'), inputPw: document.getElementById('admin-pw'),
@@ -287,10 +351,21 @@
                 adminPanel: document.getElementById('admin-panel'), btnAdminUp: document.getElementById('btn-admin-up'), btnAdminDown: document.getElementById('btn-admin-down'), btnLogout: document.getElementById('btn-logout'), adminTimer: document.getElementById('admin-timer'),
                 btnMarketResume: document.getElementById('btn-market-resume'), btnMarketPause: document.getElementById('btn-market-pause'),
                 marketMsgContainer: document.getElementById('market-msg-container'), marketMsgBadge: document.getElementById('market-msg-badge'), chartStatus: document.getElementById('chart-status-text'),
-                // Wallet & History
+                // Wallet & History (Chart View)
                 myCash: document.getElementById('my-cash'), myStockCnt: document.getElementById('my-stock-cnt'), myAvgPrice: document.getElementById('my-avg-price'), myReturnRate: document.getElementById('my-return-rate'),
+                // Wallet & History (Wallet View - New)
+                wMyCash: document.getElementById('w-my-cash'), wMyStockCnt: document.getElementById('w-my-stock-cnt'), wMyAvgPrice: document.getElementById('w-my-avg-price'), wMyReturnRate: document.getElementById('w-my-return-rate'),
+                
                 btnBuy: document.getElementById('btn-buy'), btnSell: document.getElementById('btn-sell'), depositInput: document.getElementById('deposit-input'), btnAdminDeposit: document.getElementById('btn-admin-deposit'),
-                historyList: document.getElementById('trade-history-list')
+                historyList: document.getElementById('trade-history-list'), wHistoryList: document.getElementById('w-trade-history-list'),
+
+                // Trade Modal (New)
+                tradeModal: document.getElementById('trade-modal'), tradeTitle: document.getElementById('trade-modal-title'),
+                inputPrice: document.getElementById('input-price'), inputQty: document.getElementById('input-qty'),
+                btnPriceUp: document.getElementById('btn-price-up'), btnPriceDown: document.getElementById('btn-price-down'),
+                btnQtyUp: document.getElementById('btn-qty-up'), btnQtyDown: document.getElementById('btn-qty-down'),
+                btnTradeConfirm: document.getElementById('btn-trade-confirm'), btnTradeClose: document.getElementById('btn-trade-close'),
+                tradeTotalAmount: document.getElementById('trade-total-amount')
             };
 
             const fmt = n => n.toLocaleString();
@@ -307,7 +382,8 @@
                 lastUpdated: 0, isConnected: false, adminTrend: null, adminTrendUntil: 0, manualPause: false, isAdmin: false,
                 chartOffset: 0, isDragging: false, lastX: 0, marketMood: 'neutral', nextMoodChange: 0,
                 walletCash: 0, walletStocks: 0, walletAvgPrice: 0,
-                tradeLogs: []
+                tradeLogs: [],
+                tradeType: 'buy' // 'buy' or 'sell'
             };
 
             const ctx = els.canvas.getContext('2d');
@@ -329,7 +405,7 @@
                 if (user) {
                     startSync();
                     startWalletSync();
-                    startHistorySync(); // 주문 내역 동기화
+                    startHistorySync();
                     els.loadingOverlay.style.opacity = '0'; setTimeout(() => els.loadingOverlay.style.display = 'none', 500);
                     resize();
                 }
@@ -413,7 +489,6 @@
                 });
             };
 
-            // History Sync (New)
             const startHistorySync = () => {
                 const histDocRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'trade_history');
                 window.onSnapshot(histDocRef, (snapshot) => {
@@ -427,101 +502,143 @@
             const addHistoryLog = async (type, detail) => {
                 const histDocRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'trade_history');
                 const newLog = { type, detail, time: Date.now() };
-                // 간단히 읽고 쓰기 (동시성 무시 - 로그는 덜 중요함)
                 const currentLogs = state.tradeLogs;
-                const updatedLogs = [newLog, ...currentLogs].slice(0, 30); // 최신 30개만 저장
+                const updatedLogs = [newLog, ...currentLogs].slice(0, 30);
                 await window.updateDoc(histDocRef, { logs: updatedLogs });
             };
 
             const renderHistory = () => {
-                if (state.tradeLogs.length === 0) {
-                    els.historyList.innerHTML = '<div class="text-center py-4 text-xs text-gray-400">아직 거래 내역이 없습니다.</div>';
-                    return;
-                }
-                els.historyList.innerHTML = state.tradeLogs.map(log => {
-                    const date = new Date(log.time);
-                    const timeStr = `${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}:${String(date.getSeconds()).padStart(2,'0')}`;
-                    let tagClass = 'log-deposit'; let tagText = '알림';
-                    if (log.type === 'buy') { tagClass = 'log-buy'; tagText = '매수'; }
-                    else if (log.type === 'sell') { tagClass = 'log-sell'; tagText = '매도'; }
-                    else if (log.type === 'deposit') { tagClass = 'log-deposit'; tagText = '입금'; }
-                    return `
-                        <div class="log-item">
-                            <div class="flex items-center">
-                                <span class="log-time">${timeStr}</span>
-                                <span class="log-tag ${tagClass}">${tagText}</span>
-                                <span class="text-[#333]">${log.detail}</span>
+                const logsHTML = state.tradeLogs.length === 0 
+                    ? '<div class="text-center py-4 text-xs text-gray-400">아직 거래 내역이 없습니다.</div>'
+                    : state.tradeLogs.map(log => {
+                        const date = new Date(log.time);
+                        const timeStr = `${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}:${String(date.getSeconds()).padStart(2,'0')}`;
+                        let tagClass = 'log-deposit'; let tagText = '알림';
+                        if (log.type === 'buy') { tagClass = 'log-buy'; tagText = '매수'; }
+                        else if (log.type === 'sell') { tagClass = 'log-sell'; tagText = '매도'; }
+                        else if (log.type === 'deposit') { tagClass = 'log-deposit'; tagText = '입금'; }
+                        return `
+                            <div class="log-item">
+                                <div class="flex items-center">
+                                    <span class="log-time">${timeStr}</span>
+                                    <span class="log-tag ${tagClass}">${tagText}</span>
+                                    <span class="text-[#333]">${log.detail}</span>
+                                </div>
                             </div>
-                        </div>
-                    `;
-                }).join('');
+                        `;
+                    }).join('');
+                els.historyList.innerHTML = logsHTML;
+                els.wHistoryList.innerHTML = logsHTML;
             };
 
             const updateWalletUI = () => {
-                els.myCash.innerText = fmt(state.walletCash); els.myStockCnt.innerText = fmt(state.walletStocks); els.myAvgPrice.innerText = fmt(Math.round(state.walletAvgPrice));
+                const txtCash = fmt(state.walletCash);
+                const txtStocks = fmt(state.walletStocks);
+                const txtAvg = fmt(Math.round(state.walletAvgPrice));
+                let txtRate = "0%";
+                let clsRate = "text-xs font-bold text-gray-400";
+
                 if (state.walletStocks > 0 && state.walletAvgPrice > 0) {
                     const returnRate = ((state.currentPrice - state.walletAvgPrice) / state.walletAvgPrice) * 100;
-                    els.myReturnRate.innerText = `${returnRate > 0 ? '+' : ''}${returnRate.toFixed(2)}%`;
-                    els.myReturnRate.className = `text-xs font-bold ${returnRate >= 0 ? 'text-[#f04452]' : 'text-[#3182f6]'}`;
-                } else { els.myReturnRate.innerText = "0%"; els.myReturnRate.className = "text-xs font-bold text-gray-400"; }
+                    txtRate = `${returnRate > 0 ? '+' : ''}${returnRate.toFixed(2)}%`;
+                    clsRate = `text-xs font-bold ${returnRate >= 0 ? 'text-[#f04452]' : 'text-[#3182f6]'}`;
+                }
+                els.myCash.innerText = txtCash; els.myStockCnt.innerText = txtStocks; els.myAvgPrice.innerText = txtAvg; els.myReturnRate.innerText = txtRate; els.myReturnRate.className = clsRate;
+                els.wMyCash.innerText = txtCash; els.wMyStockCnt.innerText = txtStocks; els.wMyAvgPrice.innerText = txtAvg; els.wMyReturnRate.innerText = txtRate; els.wMyReturnRate.className = clsRate;
             };
 
-            const handleTrade = async (type) => {
+            // --- TRADE MODAL LOGIC (New) ---
+            const openTradeModal = (type) => {
+                state.tradeType = type;
+                els.tradeModal.classList.remove('hidden');
+                els.tradeTitle.innerText = type === 'buy' ? '매수하기' : '매도하기';
+                els.tradeTitle.className = type === 'buy' ? 'text-xl font-bold text-[#f04452]' : 'text-xl font-bold text-[#3182f6]';
+                els.btnTradeConfirm.innerText = type === 'buy' ? '매수하기' : '매도하기';
+                els.btnTradeConfirm.className = `w-full py-4 rounded-xl font-bold text-white text-lg shadow-lg active:scale-95 transition-transform ${type === 'buy' ? 'bg-[#f04452]' : 'bg-[#3182f6]'}`;
+                
+                els.inputPrice.value = state.currentPrice;
+                els.inputQty.value = 1;
+                updateTradeTotal();
+            };
+
+            const updateTradeTotal = () => {
+                const p = parseInt(els.inputPrice.value) || 0;
+                const q = parseInt(els.inputQty.value) || 0;
+                els.tradeTotalAmount.innerText = fmt(p * q);
+            };
+
+            els.inputPrice.oninput = updateTradeTotal;
+            els.inputQty.oninput = updateTradeTotal;
+            
+            els.btnPriceUp.onclick = () => { els.inputPrice.value = parseInt(els.inputPrice.value) + 1; updateTradeTotal(); };
+            els.btnPriceDown.onclick = () => { els.inputPrice.value = Math.max(1, parseInt(els.inputPrice.value) - 1); updateTradeTotal(); };
+            els.btnQtyUp.onclick = () => { els.inputQty.value = parseInt(els.inputQty.value) + 1; updateTradeTotal(); };
+            els.btnQtyDown.onclick = () => { els.inputQty.value = Math.max(1, parseInt(els.inputQty.value) - 1); updateTradeTotal(); };
+
+            els.btnTradeClose.onclick = () => { els.tradeModal.classList.add('hidden'); };
+
+            els.btnTradeConfirm.onclick = async () => {
+                const price = parseInt(els.inputPrice.value);
+                const qty = parseInt(els.inputQty.value);
+                if (price <= 0 || qty <= 0) { showToast("가격과 수량을 확인해주세요."); return; }
+
+                // 가격 검증 (지정가 흉내)
+                if (state.tradeType === 'buy' && price < state.currentPrice) {
+                    showToast(`가격이 너무 낮아 체결되지 않습니다. (현재가 ${state.currentPrice}원)`);
+                    return;
+                }
+                if (state.tradeType === 'sell' && price > state.currentPrice) {
+                    showToast(`가격이 너무 높아 체결되지 않습니다. (현재가 ${state.currentPrice}원)`);
+                    return;
+                }
+
+                await executeTrade(state.tradeType, qty); // 실제 체결은 현재가로 진행 (단순화)
+                els.tradeModal.classList.add('hidden');
+            };
+
+            const executeTrade = async (type, qty) => {
                 const walletDocRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'shared_wallet');
                 try {
                     const snapshot = await window.getDoc(walletDocRef);
                     if (!snapshot.exists()) return;
                     const data = snapshot.data();
                     const currentCash = data.cash || 0; const currentStocks = data.stocks || 0; const currentAvg = data.avgPrice || 0;
+                    
+                    // 실제 체결은 현재가 기준
+                    const tradePrice = state.currentPrice; 
+                    const totalAmt = tradePrice * qty;
 
                     if (type === 'buy') {
-                        if (currentCash < state.currentPrice) { showToast("공용 현금이 부족합니다!"); return; }
-                        const newCash = currentCash - state.currentPrice;
-                        const totalValue = (currentStocks * currentAvg) + state.currentPrice;
-                        const newStocks = currentStocks + 1;
+                        if (currentCash < totalAmt) { showToast("공용 현금이 부족합니다!"); return; }
+                        const newCash = currentCash - totalAmt;
+                        const totalValue = (currentStocks * currentAvg) + totalAmt;
+                        const newStocks = currentStocks + qty;
                         const newAvg = totalValue / newStocks;
                         await window.updateDoc(walletDocRef, { cash: newCash, stocks: newStocks, avgPrice: newAvg });
-                        addHistoryLog('buy', `1주 매수 체결 (${fmt(state.currentPrice)}원)`);
-                        showToast(`공용 지갑: 1주 매수 (${fmt(state.currentPrice)}원)`);
+                        addHistoryLog('buy', `${qty}주 매수 체결 (${fmt(tradePrice)}원)`);
+                        showToast(`공용 지갑: ${qty}주 매수 완료`);
                     } else if (type === 'sell') {
-                        if (currentStocks <= 0) { showToast("보유 주식이 없습니다!"); return; }
-                        const newCash = currentCash + state.currentPrice;
-                        const newStocks = currentStocks - 1;
+                        if (currentStocks < qty) { showToast("보유 주식이 부족합니다!"); return; }
+                        const newCash = currentCash + totalAmt;
+                        const newStocks = currentStocks - qty;
                         const newAvg = newStocks === 0 ? 0 : currentAvg;
                         await window.updateDoc(walletDocRef, { cash: newCash, stocks: newStocks, avgPrice: newAvg });
-                        addHistoryLog('sell', `1주 매도 체결 (${fmt(state.currentPrice)}원)`);
-                        showToast(`공용 지갑: 1주 매도 (${fmt(state.currentPrice)}원)`);
+                        addHistoryLog('sell', `${qty}주 매도 체결 (${fmt(tradePrice)}원)`);
+                        showToast(`공용 지갑: ${qty}주 매도 완료`);
                     }
                 } catch(e) { console.error("Trade Error", e); }
             };
 
-            els.btnBuy.onclick = () => handleTrade('buy');
-            els.btnSell.onclick = () => handleTrade('sell');
+            els.btnBuy.onclick = () => openTradeModal('buy');
+            els.btnSell.onclick = () => openTradeModal('sell');
 
-            // --- 추가된 기능: 상단 버튼 및 관리자 로직 ---
-
-            // 1. 홈(뒤로가기) 버튼 -> 링크 이동으로 수정
-            els.btnHome.onclick = () => {
-                window.location.href = 'https://won429.github.io/enjoysite/'; // 메인 링크로 이동 (필요시 주소 변경)
-            };
-
-            // 2. 프로필(관리자) 버튼 클릭 시 모달 오픈
-            els.btnProfile.onclick = () => {
-                els.loginModal.classList.remove('hidden');
-                els.inputPw.value = '';
-                // 모바일 키보드 올라오는 시간 고려
-                setTimeout(() => els.inputPw.focus(), 100);
-            };
-
-            // 3. 모달 취소 버튼
-            els.btnLoginCancel.onclick = () => {
-                els.loginModal.classList.add('hidden');
-            };
-
-            // 4. 모달 로그인 확인 버튼 (비밀번호 0920으로 수정)
+            // --- 상단 버튼 및 관리자 로직 ---
+            els.btnHome.onclick = () => { window.location.href = 'https://won429.github.io/enjoysite/'; };
+            els.btnProfile.onclick = () => { els.loginModal.classList.remove('hidden'); els.inputPw.value = ''; setTimeout(() => els.inputPw.focus(), 100); };
+            els.btnLoginCancel.onclick = () => { els.loginModal.classList.add('hidden'); };
             els.btnLoginConfirm.onclick = () => {
                 const pw = els.inputPw.value;
-                if (pw === '0920') { // 관리자 비밀번호 (0920)
+                if (pw === '0920') {
                     state.isAdmin = true;
                     els.loginModal.classList.add('hidden');
                     els.adminPanel.classList.remove('hidden');
@@ -534,7 +651,6 @@
                 }
             };
 
-            // 5. 관리자 패널 버튼 기능 구현
             const setAdminTrend = async (trend) => {
                 if (!state.isAdmin) return;
                 const duration = 30 * 1000; // 30초
@@ -543,11 +659,8 @@
                 state.adminTrendUntil = until;
                 updateUI();
                 showToast(`관리자: ${trend === 'up' ? '상승' : '하락'}장 조작 시작 (30초)`);
-                
                 const docRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'enjoy_ticker');
-                try {
-                    await window.updateDoc(docRef, { adminTrend: trend, adminTrendUntil: until });
-                } catch(e) { console.error(e); }
+                try { await window.updateDoc(docRef, { adminTrend: trend, adminTrendUntil: until }); } catch(e) { console.error(e); }
             };
 
             const setMarketStatus = async (pause) => {
@@ -556,25 +669,14 @@
                 updateUI();
                 showToast(`장 ${pause ? '일시정지' : '재개'} 완료`);
                 const docRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'enjoy_ticker');
-                try {
-                    await window.updateDoc(docRef, { manualPause: pause });
-                } catch(e) { console.error(e); }
+                try { await window.updateDoc(docRef, { manualPause: pause }); } catch(e) { console.error(e); }
             };
 
             els.btnAdminUp.onclick = () => setAdminTrend('up');
             els.btnAdminDown.onclick = () => setAdminTrend('down');
             els.btnMarketResume.onclick = () => setMarketStatus(false);
             els.btnMarketPause.onclick = () => setMarketStatus(true);
-            
-            els.btnLogout.onclick = () => {
-                state.isAdmin = false;
-                els.adminPanel.classList.add('hidden');
-                showToast("관리자 로그아웃");
-                updateUI();
-            };
-
-            // ----------------------------------------
-
+            els.btnLogout.onclick = () => { state.isAdmin = false; els.adminPanel.classList.add('hidden'); showToast("관리자 로그아웃"); updateUI(); };
             els.btnAdminDeposit.onclick = async () => {
                 const amount = parseInt(els.depositInput.value);
                 if (isNaN(amount) || amount <= 0) { showToast("올바른 금액을 입력하세요."); return; }
@@ -589,7 +691,7 @@
                 } catch(e) { console.error("Deposit Error", e); }
             };
 
-            // Chart logic (same as before)
+            // Chart logic
             const handleStart = (x) => { state.isDragging = true; state.lastX = x; els.chartContainer.classList.replace('cursor-grab', 'cursor-grabbing'); };
             const handleMove = (x) => { if (!state.isDragging) return; const deltaX = x - state.lastX; state.lastX = x; state.chartOffset -= Math.round(deltaX / 5 * 2); if (state.chartOffset < 0) state.chartOffset = 0; const maxOffset = Math.max(0, state.history.length - 30); if (state.chartOffset > maxOffset) state.chartOffset = maxOffset; drawChart(); if (state.chartOffset > 0) { els.chartStatus.innerText = "과거 기록 조회 중"; els.liveDot.classList.remove('animate-pulse'); els.liveDot.classList.replace('bg-[#3182f6]', 'bg-gray-400'); } else { els.chartStatus.innerText = "실시간"; updateUI(); } };
             const handleEnd = () => { state.isDragging = false; els.chartContainer.classList.replace('cursor-grabbing', 'cursor-grab'); };
@@ -662,12 +764,20 @@
 
             const switchTab = (tabName) => {
                 state.tab = tabName;
-                [els.tabChart, els.tabOrder, els.tabInfo].forEach(btn => btn.classList.remove('active'));
-                if(tabName === 'chart') els.tabChart.classList.add('active'); if(tabName === 'order') els.tabOrder.classList.add('active'); if(tabName === 'info') els.tabInfo.classList.add('active');
-                els.viewChart.classList.add('hidden'); els.viewOrder.classList.add('hidden'); els.viewInfo.classList.add('hidden');
-                if(tabName === 'chart') { els.viewChart.classList.remove('hidden'); resize(); drawChart(); } else if(tabName === 'order') { els.viewOrder.classList.remove('hidden'); els.viewOrder.classList.add('flex'); renderOrderBook(); } else { els.viewInfo.classList.remove('hidden'); els.viewInfo.classList.add('flex'); }
+                [els.tabChart, els.tabOrder, els.tabWallet, els.tabInfo].forEach(btn => btn.classList.remove('active'));
+                if(tabName === 'chart') els.tabChart.classList.add('active'); 
+                if(tabName === 'order') els.tabOrder.classList.add('active'); 
+                if(tabName === 'wallet') els.tabWallet.classList.add('active');
+                if(tabName === 'info') els.tabInfo.classList.add('active');
+                
+                els.viewChart.classList.add('hidden'); els.viewOrder.classList.add('hidden'); els.viewWallet.classList.add('hidden'); els.viewInfo.classList.add('hidden');
+                
+                if(tabName === 'chart') { els.viewChart.classList.remove('hidden'); resize(); drawChart(); }
+                else if(tabName === 'order') { els.viewOrder.classList.remove('hidden'); els.viewOrder.classList.add('flex'); renderOrderBook(); }
+                else if(tabName === 'wallet') { els.viewWallet.classList.remove('hidden'); els.viewWallet.classList.add('flex'); }
+                else { els.viewInfo.classList.remove('hidden'); els.viewInfo.classList.add('flex'); }
             };
-            els.tabChart.onclick = () => switchTab('chart'); els.tabOrder.onclick = () => switchTab('order'); els.tabInfo.onclick = () => switchTab('info');
+            els.tabChart.onclick = () => switchTab('chart'); els.tabOrder.onclick = () => switchTab('order'); els.tabWallet.onclick = () => switchTab('wallet'); els.tabInfo.onclick = () => switchTab('info');
         });
     </script>
 </body>
