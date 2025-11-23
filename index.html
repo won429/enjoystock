@@ -55,10 +55,6 @@
         .tab-item.active { color: #191f28; }
         .tab-item.active::after { content: ''; position: absolute; bottom: -11px; left: 0; right: 0; height: 2px; background-color: #191f28; }
 
-        /* 기간 버튼 */
-        .period-btn { color: #8b95a1; font-size: 13px; font-weight: 500; padding: 6px 12px; border-radius: 6px; transition: all 0.2s; }
-        .period-btn.active { background-color: #f2f4f6; color: #191f28; font-weight: 700; }
-
         /* 호가창 */
         .order-row { display: grid; grid-template-columns: 1fr 1.2fr 1fr; height: 40px; align-items: center; border-bottom: 1px solid #f2f4f6; position: relative; }
         .order-cell { position: relative; height: 100%; display: flex; align-items: center; z-index: 10; padding: 0 8px; }
@@ -88,6 +84,16 @@
         
         /* 장 마감 오버레이 */
         #market-closed-overlay { backdrop-filter: blur(2px); }
+        
+        /* 구분선 */
+        .divider-section {
+            border-top: 8px solid #f2f4f6;
+            margin-top: 20px;
+            padding-top: 20px;
+            text-align: center;
+            color: #e5e8eb;
+            font-size: 12px;
+        }
     </style>
 </head>
 <body class="flex flex-col h-[100dvh] w-screen relative">
@@ -103,8 +109,8 @@
 
     <!-- 장 마감 오버레이 (차트 위에 표시) -->
     <div id="market-closed-overlay" class="absolute top-20 left-0 right-0 bottom-0 bg-white/50 z-40 hidden flex items-center justify-center pointer-events-none">
-        <div class="bg-black/80 text-white px-4 py-2 rounded-full text-sm font-bold shadow-lg">
-            🌙 장 마감
+        <div class="bg-black/80 text-white px-4 py-2 rounded-full text-sm font-bold shadow-lg" id="market-msg">
+            🌙 장 마감 (08:00 ~ 23:30)
         </div>
     </div>
 
@@ -125,7 +131,6 @@
         <div class="flex justify-between items-start mb-2">
             <h1 class="text-2xl font-bold tracking-tight text-[#191f28] flex items-center gap-2">
                 엔조이
-                <!-- 알약 모양 수정: 글자 크기 살짝 키우고 패딩 조정 -->
                 <span class="text-[10px] font-bold text-white bg-[#f04452] px-1.5 py-0.5 rounded-full tracking-tight shadow-sm leading-tight">2025.11.23 상장</span>
                 <span id="sync-status" class="w-2 h-2 rounded-full bg-gray-300 ml-1 flex-shrink-0" title="서버 연결 상태"></span>
             </h1>
@@ -169,7 +174,8 @@
                 <div class="w-1.5 h-1.5 rounded-full bg-[#3182f6] animate-pulse" id="live-dot"></div>
                 <span class="text-xs font-medium text-[#8b95a1]" id="chart-status-text">실시간</span>
             </div>
-            <div class="w-full h-[320px] relative mt-2">
+            <!-- 드래그 가능한 차트 영역 -->
+            <div class="w-full h-[320px] relative mt-2 touch-pan-x cursor-grab active:cursor-grabbing" id="chart-container">
                 <canvas id="chart-canvas" class="w-full h-full block"></canvas>
                 <div id="label-high" class="absolute text-[11px] text-[#3182f6] font-medium transition-all duration-300 pointer-events-none opacity-0">최고 <span id="val-high">100</span>원</div>
                 <div id="label-low" class="absolute text-[11px] text-[#3182f6] font-medium transition-all duration-300 pointer-events-none opacity-0">최저 <span id="val-low">100</span>원</div>
@@ -179,13 +185,12 @@
                     ⚡ 관리자 개입 중
                 </div>
             </div>
-            <div class="px-4 mt-8 flex justify-between items-center bg-white" id="period-container">
-                <button class="period-btn active" data-period="1D">1일</button>
-                <button class="period-btn" data-period="1W">1주</button>
-                <button class="period-btn" data-period="3M">3달</button>
-                <button class="period-btn" data-period="1Y">1년</button>
-                <button class="period-btn" data-period="5Y">5년</button>
-                <button class="period-btn" data-period="ALL">전체</button>
+            
+            <!-- 구분선 -->
+            <div class="divider-section mx-5">
+                <div class="w-full h-1 bg-gray-50 rounded-full mb-2"></div>
+                <!-- 안내 문구 -->
+                <p class="text-[10px] text-gray-300">차트를 좌우로 드래그하여 과거 기록을 확인할 수 있습니다.</p>
             </div>
         </div>
 
@@ -232,13 +237,13 @@
             </button>
         </div>
 
-        <!-- 시장 제어 -->
+        <!-- 시장 제어 (재개/일시정지) -->
         <div class="grid grid-cols-2 gap-3 mb-3">
-            <button id="btn-market-open" class="bg-green-500 text-white font-bold py-2 rounded-xl active:scale-95 transition-transform text-sm">
-                🔔 장 시작
+            <button id="btn-market-resume" class="bg-green-500 text-white font-bold py-2 rounded-xl active:scale-95 transition-transform text-sm">
+                🔔 장 재개
             </button>
-            <button id="btn-market-close" class="bg-gray-700 text-white font-bold py-2 rounded-xl active:scale-95 transition-transform text-sm">
-                🌙 장 마감
+            <button id="btn-market-pause" class="bg-gray-700 text-white font-bold py-2 rounded-xl active:scale-95 transition-transform text-sm">
+                ⏸ 장 일시정지
             </button>
         </div>
 
@@ -256,6 +261,7 @@
                 diffLabel: document.getElementById('diff-label'),
                 diffVal: document.getElementById('price-diff'),
                 rate: document.getElementById('price-rate'),
+                chartContainer: document.getElementById('chart-container'),
                 canvas: document.getElementById('chart-canvas'),
                 labelHigh: document.getElementById('label-high'),
                 labelLow: document.getElementById('label-low'),
@@ -270,7 +276,6 @@
                 tabChart: document.getElementById('tab-chart'),
                 tabOrder: document.getElementById('tab-order'),
                 tabInfo: document.getElementById('tab-info'),
-                periodBtns: document.querySelectorAll('.period-btn'),
                 toastContainer: document.getElementById('toast-container'),
                 loadingOverlay: document.getElementById('loading-overlay'),
                 syncStatus: document.getElementById('sync-status'),
@@ -285,9 +290,11 @@
                 btnLogout: document.getElementById('btn-logout'),
                 adminTimer: document.getElementById('admin-timer'),
                 adminIndicator: document.getElementById('admin-indicator'),
-                btnMarketOpen: document.getElementById('btn-market-open'),
-                btnMarketClose: document.getElementById('btn-market-close'),
-                marketOverlay: document.getElementById('market-closed-overlay')
+                btnMarketResume: document.getElementById('btn-market-resume'),
+                btnMarketPause: document.getElementById('btn-market-pause'),
+                marketOverlay: document.getElementById('market-closed-overlay'),
+                marketMsg: document.getElementById('market-msg'),
+                chartStatus: document.getElementById('chart-status-text')
             };
 
             const fmt = n => n.toLocaleString();
@@ -302,15 +309,21 @@
             // === 상태 ===
             let state = {
                 currentPrice: 100,
-                startPrice: 100,
+                basePrice: 100, 
+                basePriceLabel: "시작가보다", 
                 history: [100], 
                 tab: 'chart',
                 lastUpdated: 0,
                 isConnected: false,
                 adminTrend: null,
                 adminTrendUntil: 0,
-                marketStatus: 'open', // 'open' | 'closed'
-                isAdmin: false
+                manualPause: false, 
+                isAdmin: false,
+                
+                // 드래그 관련 상태
+                chartOffset: 0, // 현재 얼마나 과거를 보고 있는지 (인덱스 오프셋)
+                isDragging: false,
+                lastX: 0
             };
 
             // === 1. Firebase Auth & Data ===
@@ -338,11 +351,20 @@
                         state.lastUpdated = data.lastUpdated || 0;
                         state.adminTrend = data.adminTrend || null;
                         state.adminTrendUntil = data.adminTrendUntil || 0;
-                        state.marketStatus = data.marketStatus || 'open';
+                        state.manualPause = data.manualPause || false;
+                        state.basePrice = data.basePrice || 100;
+                        state.basePriceLabel = data.basePriceLabel || "시작가보다";
                         state.isConnected = true;
                         els.syncStatus.classList.remove('bg-gray-300', 'bg-red-500');
                         els.syncStatus.classList.add('bg-green-500');
-                        updateUI();
+                        
+                        // 만약 드래그 중이 아니라면(실시간 모드라면) 오프셋 0 유지하고 업데이트
+                        if (state.chartOffset === 0) {
+                            updateUI();
+                        } else {
+                            // 과거를 보고 있다면 데이터는 업데이트하되 화면 갱신은 드래그 위치 유지
+                            drawChart(); 
+                        }
                     } else {
                         initializeData(docRef);
                     }
@@ -354,43 +376,54 @@
                 setInterval(async () => {
                     if (!state.isConnected) return;
                     
-                    // 장 마감 상태면 업데이트 중단
-                    if (state.marketStatus === 'closed') return;
+                    const now = new Date();
+                    const hours = now.getHours();
+                    const minutes = now.getMinutes();
+                    const currentTimeVal = hours * 60 + minutes;
+                    const isMarketOpen = (currentTimeVal >= 480 && currentTimeVal < 1410);
+                    
+                    if (isMarketOpen && !state.manualPause) {
+                        if (Date.now() - state.lastUpdated > 1200) {
+                            
+                            let nextBasePrice = state.basePrice;
+                            let nextBaseLabel = state.basePriceLabel;
+                            
+                            if (now.getDate() > 23 && nextBasePrice === 100) {
+                                nextBaseLabel = "어제보다";
+                            }
 
-                    const now = Date.now();
-                    if (now - state.lastUpdated > 1200) {
-                        let change = 0;
-                        
-                        // 관리자 개입
-                        if (state.adminTrend && state.adminTrendUntil > now) {
-                            if (state.adminTrend === 'up') { change = Math.floor(Math.random() * 6) + 2; } 
-                            else { change = Math.floor(Math.random() * -6) - 2; }
-                        } else {
-                            // 완전 랜덤 (상승/하락 50:50)
-                            change = Math.floor(Math.random() * 11) - 5; 
-                            if (change === 0) change = Math.random() > 0.5 ? 1 : -1;
+                            let change = 0;
+                            if (state.adminTrend && state.adminTrendUntil > Date.now()) {
+                                if (state.adminTrend === 'up') { change = Math.floor(Math.random() * 6) + 2; } 
+                                else { change = Math.floor(Math.random() * -6) - 2; }
+                            } else {
+                                change = Math.floor(Math.random() * 11) - 5; 
+                                if (change === 0) change = Math.random() > 0.5 ? 1 : -1;
+                            }
+
+                            let nextPrice = state.currentPrice + change;
+                            if(nextPrice < 1) nextPrice = 1;
+
+                            // 히스토리 누적 (최대 1000개로 늘림 - 드래그 기능 위해)
+                            const newHistory = [...state.history, nextPrice];
+                            if (newHistory.length > 1000) newHistory.shift();
+                            
+                            let newTrend = state.adminTrend;
+                            let newTrendUntil = state.adminTrendUntil;
+                            if (state.adminTrend && Date.now() > state.adminTrendUntil) { newTrend = null; }
+
+                            try {
+                                await window.updateDoc(docRef, {
+                                    currentPrice: nextPrice,
+                                    history: newHistory,
+                                    lastUpdated: Date.now(),
+                                    adminTrend: newTrend,
+                                    adminTrendUntil: newTrendUntil,
+                                    manualPause: state.manualPause,
+                                    basePriceLabel: nextBaseLabel
+                                });
+                            } catch (e) {}
                         }
-
-                        let nextPrice = state.currentPrice + change;
-                        if(nextPrice < 1) nextPrice = 1;
-
-                        const newHistory = [...state.history, nextPrice];
-                        if (newHistory.length > 300) newHistory.shift();
-                        
-                        let newTrend = state.adminTrend;
-                        let newTrendUntil = state.adminTrendUntil;
-                        if (state.adminTrend && now > state.adminTrendUntil) { newTrend = null; }
-
-                        try {
-                            await window.updateDoc(docRef, {
-                                currentPrice: nextPrice,
-                                history: newHistory,
-                                lastUpdated: now,
-                                adminTrend: newTrend,
-                                adminTrendUntil: newTrendUntil,
-                                marketStatus: state.marketStatus
-                            });
-                        } catch (e) {}
                     }
                 }, 1000);
             };
@@ -403,12 +436,70 @@
                         lastUpdated: Date.now(),
                         adminTrend: null,
                         adminTrendUntil: 0,
-                        marketStatus: 'open'
+                        manualPause: false,
+                        basePrice: 100,
+                        basePriceLabel: "시작가보다"
                     });
                 } catch(e) {}
             };
 
-            // === 2. 관리자 기능 ===
+            // === 2. 차트 드래그 로직 ===
+            const handleStart = (x) => {
+                state.isDragging = true;
+                state.lastX = x;
+                els.chartContainer.classList.remove('cursor-grab');
+                els.chartContainer.classList.add('cursor-grabbing');
+            };
+            
+            const handleMove = (x) => {
+                if (!state.isDragging) return;
+                const deltaX = x - state.lastX;
+                state.lastX = x;
+                
+                // 감도 조절 (빠르게 스크롤)
+                const sensitivity = 2; 
+                // 왼쪽으로 드래그(-delta) -> 과거를 봐야함 -> offset 증가
+                // 오른쪽으로 드래그(+delta) -> 최근을 봐야함 -> offset 감소
+                state.chartOffset -= Math.round(deltaX / 5 * sensitivity); 
+                
+                // 경계 처리
+                if (state.chartOffset < 0) state.chartOffset = 0; // 가장 최신
+                // 데이터 길이보다 더 과거로 못가게 (화면에 보여줄 최소 개수 30개 유지)
+                const maxOffset = Math.max(0, state.history.length - 30);
+                if (state.chartOffset > maxOffset) state.chartOffset = maxOffset;
+                
+                drawChart();
+                
+                // 실시간 여부 UI 업데이트
+                if (state.chartOffset > 0) {
+                    els.chartStatus.innerText = "과거 기록 조회 중";
+                    els.liveDot.classList.remove('animate-pulse');
+                    els.liveDot.classList.replace('bg-[#3182f6]', 'bg-gray-400');
+                } else {
+                    els.chartStatus.innerText = "실시간";
+                    els.liveDot.classList.add('animate-pulse');
+                    els.liveDot.classList.replace('bg-gray-400', 'bg-[#3182f6]');
+                }
+            };
+            
+            const handleEnd = () => {
+                state.isDragging = false;
+                els.chartContainer.classList.remove('cursor-grabbing');
+                els.chartContainer.classList.add('cursor-grab');
+            };
+
+            // 마우스 이벤트
+            els.chartContainer.addEventListener('mousedown', e => handleStart(e.clientX));
+            window.addEventListener('mousemove', e => handleMove(e.clientX));
+            window.addEventListener('mouseup', handleEnd);
+            
+            // 터치 이벤트
+            els.chartContainer.addEventListener('touchstart', e => handleStart(e.touches[0].clientX));
+            window.addEventListener('touchmove', e => handleMove(e.touches[0].clientX));
+            window.addEventListener('touchend', handleEnd);
+
+
+            // === 3. 관리자 기능 ===
             els.btnProfile.onclick = () => {
                 if (state.isAdmin) { showToast("이미 관리자로 로그인되어 있습니다."); } 
                 else { els.loginModal.classList.remove('hidden'); els.inputPw.value = ''; els.inputPw.focus(); }
@@ -430,30 +521,28 @@
             const setTrend = async (trend) => {
                 if (!state.isConnected) return;
                 const docRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'enjoy_ticker');
-                const duration = 30 * 1000; // 30초
+                const duration = 30 * 1000; 
                 try {
                     await window.updateDoc(docRef, { adminTrend: trend, adminTrendUntil: Date.now() + duration });
                     const label = trend === 'up' ? '상승' : '하락';
                     showToast(`30초간 ${label} 추세가 적용됩니다.`);
                 } catch (e) { showToast("명령 전송 실패"); }
             };
-            
-            // 장 상태 제어 함수
-            const setMarketStatus = async (status) => {
+            const setManualPause = async (pause) => {
                 if (!state.isConnected) return;
                 const docRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'enjoy_ticker');
                 try {
-                    await window.updateDoc(docRef, { marketStatus: status });
-                    showToast(status === 'open' ? "장이 시작되었습니다." : "장이 마감되었습니다.");
+                    await window.updateDoc(docRef, { manualPause: pause });
+                    showToast(pause ? "장이 일시정지 되었습니다." : "장이 재개되었습니다.");
                 } catch (e) { showToast("명령 전송 실패"); }
             };
 
             els.btnAdminUp.onclick = () => setTrend('up');
             els.btnAdminDown.onclick = () => setTrend('down');
-            els.btnMarketOpen.onclick = () => setMarketStatus('open');
-            els.btnMarketClose.onclick = () => setMarketStatus('closed');
+            els.btnMarketResume.onclick = () => setManualPause(false);
+            els.btnMarketPause.onclick = () => setManualPause(true);
 
-            // === 3. UI 렌더링 ===
+            // === 4. UI 렌더링 ===
             const ctx = els.canvas.getContext('2d');
             const dpr = window.devicePixelRatio || 1;
             let size = { w: 0, h: 0 };
@@ -473,56 +562,83 @@
                 if(w === 0) resize();
                 ctx.clearRect(0, 0, w, h);
 
-                const data = state.history;
-                let minVal = Math.min(...data, 100);
-                let maxVal = Math.max(...data, 100);
+                const fullHistory = state.history;
+                
+                // 보여줄 데이터 개수 (화면에 꽉 차게)
+                const viewCount = 60; 
+                
+                // 데이터 슬라이싱 (오프셋 적용)
+                let endIdx = fullHistory.length - state.chartOffset;
+                let startIdx = Math.max(0, endIdx - viewCount);
+                
+                // 데이터가 부족하면 0부터 시작
+                if (endIdx < viewCount) {
+                    endIdx = Math.min(viewCount, fullHistory.length);
+                    startIdx = 0;
+                }
+                
+                const data = fullHistory.slice(startIdx, endIdx);
+                
+                if (data.length < 2) return; // 데이터 부족 시 중단
+
+                let minVal = Math.min(...data);
+                let maxVal = Math.max(...data);
+                
+                // 기준가 포함
+                minVal = Math.min(minVal, state.basePrice);
+                maxVal = Math.max(maxVal, state.basePrice);
+
                 if (maxVal === minVal) { maxVal += 10; minVal -= 10; } 
                 else { const padding = (maxVal - minVal) * 0.1; maxVal += padding; minVal -= padding; }
                 const range = maxVal - minVal;
-                const baseY = h - ((100 - minVal) / range) * h;
                 
+                // 기준선
+                const baseY = h - ((state.basePrice - minVal) / range) * h;
                 els.baseLine.style.top = `${(baseY / h) * 100}%`;
-                const isUp = state.currentPrice >= 100;
+                els.baseLine.classList.remove('hidden');
+
+                // 색상 결정 (화면상 마지막 값 vs 기준가)
+                const lastVal = data[data.length - 1];
+                const isUp = lastVal >= state.basePrice;
                 const color = isUp ? '#f04452' : '#3182f6';
                 
                 els.labelHigh.style.color = color; els.labelLow.style.color = color; els.liveDot.style.backgroundColor = color;
 
                 ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-                if (data.length === 1) { ctx.moveTo(0, baseY); ctx.lineTo(w, baseY); } 
-                else {
-                    const step = w / (data.length - 1);
-                    data.forEach((p, i) => {
-                        const x = i * step; const y = h - ((p - minVal) / range) * h;
-                        if(i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-                    });
-                }
+                
+                const step = w / (viewCount - 1); // 고정된 간격
+                
+                data.forEach((p, i) => {
+                    const x = i * step; const y = h - ((p - minVal) / range) * h;
+                    if(i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                });
                 ctx.stroke();
 
-                if (data.length > 1) {
-                    ctx.lineTo(w, h); ctx.lineTo(0, h); ctx.closePath();
-                    const grad = ctx.createLinearGradient(0, 0, 0, h);
-                    grad.addColorStop(0, isUp ? 'rgba(240, 68, 82, 0.05)' : 'rgba(49, 130, 246, 0.05)');
-                    grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
-                    ctx.fillStyle = grad; ctx.fill();
-                }
+                // 그라데이션
+                ctx.lineTo((data.length - 1) * step, h); ctx.lineTo(0, h); ctx.closePath();
+                const grad = ctx.createLinearGradient(0, 0, 0, h);
+                grad.addColorStop(0, isUp ? 'rgba(240, 68, 82, 0.05)' : 'rgba(49, 130, 246, 0.05)');
+                grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+                ctx.fillStyle = grad; ctx.fill();
 
+                // 라벨 업데이트
                 const maxValData = Math.max(...data); const minValData = Math.min(...data);
-                const step = w / (Math.max(data.length - 1, 1));
-                const maxIdx = data.lastIndexOf(maxValData); const minIdx = data.lastIndexOf(minValData);
                 els.valHigh.innerText = Math.round(maxValData); els.valLow.innerText = Math.round(minValData);
+                
+                const maxIdx = data.lastIndexOf(maxValData); const minIdx = data.lastIndexOf(minValData);
                 
                 const maxPos = { x: maxIdx * step, y: h - ((maxValData - minVal) / range) * h };
                 const minPos = { x: minIdx * step, y: h - ((minValData - minVal) / range) * h };
                 
                 const labelX_Max = Math.min(Math.max(maxPos.x, 30), w - 30);
                 const labelX_Min = Math.min(Math.max(minPos.x, 30), w - 30);
-                
                 els.labelHigh.style.opacity = 1; els.labelHigh.style.left = `${labelX_Max}px`; els.labelHigh.style.top = `${maxPos.y - 25}px`;
                 els.labelLow.style.opacity = 1; els.labelLow.style.left = `${labelX_Min}px`; els.labelLow.style.top = `${minPos.y + 10}px`;
                 
                 [maxPos, minPos].forEach(pos => { ctx.beginPath(); ctx.fillStyle = 'white'; ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.arc(pos.x, pos.y, 3, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); });
                 
-                const lastIdx = data.length - 1; const lastX = lastIdx * step; const lastY = h - ((data[lastIdx] - minVal) / range) * h;
+                // 마지막 점 (오프셋이 0일 때만 펄스 효과)
+                const lastX = (data.length - 1) * step; const lastY = h - ((lastVal - minVal) / range) * h;
                 ctx.beginPath(); ctx.fillStyle = color; ctx.arc(lastX, lastY, 4, 0, Math.PI * 2); ctx.fill();
             };
 
@@ -530,17 +646,13 @@
                 const curr = state.currentPrice;
                 const spread = Math.max(1, Math.floor(curr * 0.01)); 
                 let html = '';
-                // 모바일 최적화 구조
                 for(let i=5; i>=1; i--) {
                     const p = curr + (i * spread);
                     const vol = Math.floor(Math.random() * 2000) + 100;
                     const width = Math.min(vol / 30, 100); 
                     html += `
                     <div class="order-row bg-ask">
-                        <div class="order-cell cell-ask-vol">
-                            <div class="vol-bar vol-bar-ask" style="width: ${width}%;"></div>
-                            <span class="relative z-10">${vol}</span>
-                        </div>
+                        <div class="order-cell cell-ask-vol"><div class="vol-bar vol-bar-ask" style="width: ${width}%;"></div><span class="relative z-10">${vol}</span></div>
                         <div class="order-cell cell-price text-down">${fmt(p)}</div>
                         <div class="order-cell cell-bid-vol"></div>
                     </div>`;
@@ -555,10 +667,7 @@
                     <div class="order-row bg-bid">
                         <div class="order-cell cell-ask-vol"></div>
                         <div class="order-cell cell-price text-up">${fmt(priceDisplay)}</div>
-                        <div class="order-cell cell-bid-vol">
-                            <div class="vol-bar vol-bar-bid" style="width: ${width}%;"></div>
-                            <span class="relative z-10">${vol}</span>
-                        </div>
+                        <div class="order-cell cell-bid-vol"><div class="vol-bar vol-bar-bid" style="width: ${width}%;"></div><span class="relative z-10">${vol}</span></div>
                     </div>`;
                 }
                 els.orderList.innerHTML = html;
@@ -566,8 +675,10 @@
 
             const updateUI = () => {
                 els.price.innerText = fmt(state.currentPrice);
-                const diff = state.currentPrice - 100; 
-                const rate = ((diff / 100) * 100).toFixed(1);
+                els.diffLabel.innerText = state.basePriceLabel; 
+
+                const diff = state.currentPrice - state.basePrice; 
+                const rate = ((diff / state.basePrice) * 100).toFixed(1);
                 const sign = diff > 0 ? '+' : '';
                 const isUp = diff >= 0;
 
@@ -575,12 +686,30 @@
                 els.rate.innerText = `(${sign}${rate}%)`;
                 els.diffBox.className = `flex items-center gap-1 ${isUp ? 'text-up' : 'text-down'}`;
 
-                const now = Date.now();
-                
-                // 관리자 표시
-                if (state.adminTrend && state.adminTrendUntil > now) {
+                const now = new Date();
+                const hours = now.getHours();
+                const minutes = now.getMinutes();
+                const currentTimeVal = hours * 60 + minutes;
+                const isMarketOpen = (currentTimeVal >= 480 && currentTimeVal < 1410); 
+
+                if (!isMarketOpen || state.manualPause) {
+                    els.marketOverlay.classList.remove('hidden');
+                    els.liveDot.classList.remove('animate-pulse');
+                    els.liveDot.classList.replace('bg-[#3182f6]', 'bg-gray-400');
+                    if (state.manualPause) els.marketMsg.innerText = "⏸ 장 일시정지됨";
+                    else els.marketMsg.innerText = "🌙 장 마감 (08:00 ~ 23:30)";
+                } else {
+                    els.marketOverlay.classList.add('hidden');
+                    // 오프셋이 0일 때만(실시간일 때만) 펄스
+                    if (state.chartOffset === 0) {
+                        els.liveDot.classList.add('animate-pulse');
+                        els.liveDot.classList.replace('bg-gray-400', 'bg-[#3182f6]');
+                    }
+                }
+
+                if (state.adminTrend && state.adminTrendUntil > Date.now()) {
                     els.adminIndicator.classList.remove('hidden');
-                    const timeLeft = Math.ceil((state.adminTrendUntil - now) / 1000);
+                    const timeLeft = Math.ceil((state.adminTrendUntil - Date.now()) / 1000);
                     const mins = Math.floor(timeLeft / 60);
                     const secs = timeLeft % 60;
                     els.adminTimer.innerText = `${mins}:${secs < 10 ? '0'+secs : secs}`;
@@ -590,28 +719,9 @@
                     els.adminTimer.classList.add('hidden');
                 }
 
-                // 장 마감 표시
-                if (state.marketStatus === 'closed') {
-                    els.marketOverlay.classList.remove('hidden');
-                    els.liveDot.classList.remove('animate-pulse');
-                    els.liveDot.classList.replace('bg-[#3182f6]', 'bg-gray-400');
-                } else {
-                    els.marketOverlay.classList.add('hidden');
-                    els.liveDot.classList.add('animate-pulse');
-                    els.liveDot.classList.replace('bg-gray-400', 'bg-[#3182f6]');
-                }
-
                 if(state.tab === 'chart') drawChart();
                 else if(state.tab === 'order') renderOrderBook();
             };
-
-            els.periodBtns.forEach(btn => {
-                btn.onclick = (e) => {
-                    els.periodBtns.forEach(b => b.classList.remove('active')); e.target.classList.add('active');
-                    if (e.target.dataset.period !== '1D') showToast("오늘 상장되어 과거 데이터가 없습니다.");
-                    drawChart();
-                };
-            });
 
             const switchTab = (tabName) => {
                 state.tab = tabName;
