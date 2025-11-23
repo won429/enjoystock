@@ -464,8 +464,8 @@
                             let currentMood = state.marketMood; let nextChange = state.nextMoodChange;
                             
                             if (Date.now() > nextChange) {
-                                const rand = Math.random();
-                                if (rand < 0.33) currentMood = 'bull'; else if (rand < 0.66) currentMood = 'bear'; else currentMood = 'neutral';
+                                const candidates = ['bull', 'bear', 'neutral'].filter(m => m !== currentMood);
+                                currentMood = candidates[Math.floor(Math.random() * candidates.length)];
                                 nextChange = Date.now() + (5 * 60 * 1000);
                             }
                             let change = 0;
@@ -481,10 +481,8 @@
                             if (newHistory.length > 1000) newHistory.shift();
                             let newTrend = state.adminTrend; let newTrendUntil = state.adminTrendUntil;
                             
-                            // Admin trend expiry check
                             if (state.adminTrend && Date.now() > state.adminTrendUntil) {
                                 newTrend = null;
-                                // Reset random mood timer to trigger immediate random change next tick
                                 nextChange = Date.now();
                             }
 
@@ -515,7 +513,7 @@
                     if (snapshot.exists()) {
                         const data = snapshot.data();
                         state.walletCash = data.cash || 0; state.walletStocks = data.stocks || 0; state.walletAvgPrice = data.avgPrice || 0;
-                        state.pendingOrders = data.pendingOrders || []; // Sync pending orders
+                        state.pendingOrders = data.pendingOrders || []; 
                         updateWalletUI();
                     } else { window.setDoc(walletDocRef, { cash: 0, stocks: 0, avgPrice: 0, pendingOrders: [] }); }
                 });
@@ -578,7 +576,6 @@
                 els.myCash.innerText = txtCash; els.myStockCnt.innerText = txtStocks; els.myAvgPrice.innerText = txtAvg; els.myReturnRate.innerText = txtRate; els.myReturnRate.className = clsRate;
                 els.wMyCash.innerText = txtCash; els.wMyStockCnt.innerText = txtStocks; els.wMyAvgPrice.innerText = txtAvg; els.wMyReturnRate.innerText = txtRate; els.wMyReturnRate.className = clsRate;
 
-                // Render Pending Orders
                 renderPendingOrders();
             };
 
@@ -615,10 +612,9 @@
                     const pending = data.pendingOrders || [];
                     const orderIndex = pending.findIndex(o => o.id === orderId);
                     
-                    if (orderIndex === -1) return; // Already removed/executed
+                    if (orderIndex === -1) return;
                     const order = pending[orderIndex];
                     
-                    // Refund
                     let newCash = data.cash || 0;
                     let newStocks = data.stocks || 0;
                     
@@ -684,70 +680,81 @@
                 const price = parseInt(els.inputPrice.value);
                 const qty = parseInt(els.inputQty.value);
                 if (price <= 0 || qty <= 0) { showToast("가격과 수량을 확인해주세요."); return; }
-                await placeOrder(state.tradeType, qty, price);
-                els.tradeModal.classList.add('hidden');
+                
+                // placeOrder now returns boolean indicating success
+                const success = await placeOrder(state.tradeType, qty, price);
+                if (success) {
+                    els.tradeModal.classList.add('hidden');
+                }
             };
 
-            // Places an order (Immediate or Pending)
+            // Places an order (Immediate or Pending) -> Returns boolean success
             const placeOrder = async (type, qty, price) => {
                 const walletDocRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'shared_wallet');
-                
-                await window.runTransaction(window.db, async (transaction) => {
-                    const doc = await transaction.get(walletDocRef);
-                    if (!doc.exists()) return;
-                    const data = doc.data();
-                    let cash = data.cash || 0;
-                    let stocks = data.stocks || 0;
-                    let avgPrice = data.avgPrice || 0;
-                    let pending = data.pendingOrders || [];
+                let success = false;
 
-                    const isImmediateBuy = (type === 'buy' && price >= state.currentPrice);
-                    const isImmediateSell = (type === 'sell' && price <= state.currentPrice);
+                try {
+                    await window.runTransaction(window.db, async (transaction) => {
+                        const doc = await transaction.get(walletDocRef);
+                        if (!doc.exists()) throw "지갑 데이터 오류";
+                        const data = doc.data();
+                        let cash = data.cash || 0;
+                        let stocks = data.stocks || 0;
+                        let avgPrice = data.avgPrice || 0;
+                        let pending = data.pendingOrders || [];
 
-                    if (isImmediateBuy || isImmediateSell) {
-                        // Immediate Execution
-                        const execPrice = state.currentPrice;
-                        const totalAmt = execPrice * qty;
+                        const isImmediateBuy = (type === 'buy' && price >= state.currentPrice);
+                        const isImmediateSell = (type === 'sell' && price <= state.currentPrice);
 
-                        if (type === 'buy') {
-                            if (cash < totalAmt) throw "현금이 부족합니다.";
-                            cash -= totalAmt;
-                            const totalValue = (stocks * avgPrice) + totalAmt;
-                            stocks += qty;
-                            avgPrice = totalValue / stocks;
-                            addHistoryLog('buy', `${qty}주 매수 체결 (${fmt(execPrice)}원)`);
+                        if (isImmediateBuy || isImmediateSell) {
+                            const execPrice = state.currentPrice;
+                            const totalAmt = execPrice * qty;
+
+                            if (type === 'buy') {
+                                if (cash < totalAmt) throw "현금이 부족합니다.";
+                                cash -= totalAmt;
+                                const totalValue = (stocks * avgPrice) + totalAmt;
+                                stocks += qty;
+                                avgPrice = totalValue / stocks;
+                                addHistoryLog('buy', `${qty}주 매수 체결 (${fmt(execPrice)}원)`);
+                                showToast(`🎉 ${qty}주 매수 체결 완료!`);
+                            } else {
+                                if (stocks < qty) throw "주식이 부족합니다.";
+                                stocks -= qty;
+                                cash += totalAmt;
+                                if(stocks === 0) avgPrice = 0;
+                                addHistoryLog('sell', `${qty}주 매도 체결 (${fmt(execPrice)}원)`);
+                                showToast(`🎉 ${qty}주 매도 체결 완료!`);
+                            }
                         } else {
-                            if (stocks < qty) throw "주식이 부족합니다.";
-                            stocks -= qty;
-                            cash += totalAmt;
-                            if(stocks === 0) avgPrice = 0;
-                            addHistoryLog('sell', `${qty}주 매도 체결 (${fmt(execPrice)}원)`);
+                            const totalAmt = price * qty;
+                            if (type === 'buy') {
+                                if (cash < totalAmt) throw "현금이 부족합니다 (예약).";
+                                cash -= totalAmt; 
+                            } else {
+                                if (stocks < qty) throw "주식이 부족합니다 (예약).";
+                                stocks -= qty; 
+                            }
+                            pending.push({
+                                id: Date.now() + Math.random().toString(36).substr(2, 9),
+                                type, qty, price, time: Date.now()
+                            });
+                            showToast(`📝 ${qty}주 ${type==='buy'?'매수':'매도'} 주문 예약됨`);
                         }
-                    } else {
-                        // Pending Order
-                        const totalAmt = price * qty;
-                        if (type === 'buy') {
-                            if (cash < totalAmt) throw "현금이 부족합니다 (예약).";
-                            cash -= totalAmt; // Lock funds
-                        } else {
-                            if (stocks < qty) throw "주식이 부족합니다 (예약).";
-                            stocks -= qty; // Lock stocks
-                        }
-                        pending.push({
-                            id: Date.now() + Math.random().toString(36).substr(2, 9),
-                            type, qty, price, time: Date.now()
-                        });
-                        showToast(`${qty}주 ${type==='buy'?'매수':'매도'} 예약 (${fmt(price)}원)`);
-                    }
 
-                    transaction.update(walletDocRef, { cash, stocks, avgPrice, pendingOrders: pending });
-                }).catch(e => showToast(typeof e === 'string' ? e : "거래 실패"));
+                        transaction.update(walletDocRef, { cash, stocks, avgPrice, pendingOrders: pending });
+                    });
+                    success = true; // Transaction completed successfully
+                } catch(e) {
+                    showToast(typeof e === 'string' ? e : "거래 실패");
+                    success = false;
+                }
+                return success;
             };
 
             const checkPendingOrders = async (currentPrice) => {
                 if (state.pendingOrders.length === 0) return;
                 
-                // Filter executable orders locally first to save reads, but ultimately need transaction
                 const executable = state.pendingOrders.filter(o => 
                     (o.type === 'buy' && currentPrice <= o.price) || 
                     (o.type === 'sell' && currentPrice >= o.price)
@@ -766,7 +773,6 @@
                     let avgPrice = data.avgPrice || 0;
                     let pending = data.pendingOrders || [];
                     
-                    // Re-check inside transaction
                     const toExecute = [];
                     const remaining = [];
                     
@@ -779,7 +785,7 @@
                         }
                     });
 
-                    if (toExecute.length === 0) return; // Nothing to do
+                    if (toExecute.length === 0) return;
 
                     toExecute.forEach(o => {
                         if (o.type === 'buy') {
@@ -839,7 +845,6 @@
                         adminTrend: trend, 
                         adminTrendUntil: until,
                         marketMood: mood,
-                        // Defer next random change until after trend ends + buffer
                         nextMoodChange: until
                     }); 
                 } catch(e) { console.error(e); }
