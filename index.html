@@ -295,8 +295,7 @@
                 btnAdminUp: document.getElementById('btn-admin-up'),
                 btnAdminDown: document.getElementById('btn-admin-down'),
                 btnLogout: document.getElementById('btn-logout'),
-                adminTimer: document.getElementById('admin-timer'), // 관리자용 타이머 (복구)
-                // adminIndicator: document.getElementById('admin-indicator'), // 삭제됨
+                adminTimer: document.getElementById('admin-timer'),
                 btnMarketResume: document.getElementById('btn-market-resume'),
                 btnMarketPause: document.getElementById('btn-market-pause'),
                 marketMsgContainer: document.getElementById('market-msg-container'),
@@ -328,7 +327,7 @@
                 isAdmin: false,
                 
                 // 드래그 관련 상태
-                chartOffset: 0, // 현재 얼마나 과거를 보고 있는지 (인덱스 오프셋)
+                chartOffset: 0, 
                 isDragging: false,
                 lastX: 0
             };
@@ -369,7 +368,6 @@
                         if (state.chartOffset === 0) {
                             updateUI();
                         } else {
-                            // 과거를 보고 있다면 데이터는 업데이트하되 화면 갱신은 드래그 위치 유지
                             drawChart(); 
                         }
                     } else {
@@ -380,6 +378,7 @@
                     els.syncStatus.classList.add('bg-red-500');
                 });
 
+                // 메인 루프 (가격 변동)
                 setInterval(async () => {
                     if (!state.isConnected) return;
                     
@@ -389,8 +388,8 @@
                     const currentTimeVal = hours * 60 + minutes;
                     const isMarketOpen = (currentTimeVal >= 480 && currentTimeVal < 1410);
                     
-                    // 장이 열려있고 && 수동 정지가 아닐 때만 데이터 업데이트
                     if (isMarketOpen && !state.manualPause) {
+                        // 1.2초 업데이트 제한
                         if (Date.now() - state.lastUpdated > 1200) {
                             
                             let nextBasePrice = state.basePrice;
@@ -412,7 +411,6 @@
                             let nextPrice = state.currentPrice + change;
                             if(nextPrice < 1) nextPrice = 1;
 
-                            // 히스토리 누적 (최대 1000개로 늘림 - 드래그 기능 위해)
                             const newHistory = [...state.history, nextPrice];
                             if (newHistory.length > 1000) newHistory.shift();
                             
@@ -434,6 +432,11 @@
                         }
                     }
                 }, 1000);
+                
+                // 타이머 업데이트용 루프 (0.5초 간격) - UI만 갱신
+                setInterval(() => {
+                    if (state.isAdmin) updateUI();
+                }, 500);
             };
 
             const initializeData = async (docRef) => {
@@ -479,7 +482,6 @@
                     els.liveDot.classList.replace('bg-[#3182f6]', 'bg-gray-400');
                 } else {
                     els.chartStatus.innerText = "실시간";
-                    // 실시간 모드로 돌아오면 다시 깜빡임 처리 (장 상태에 따라 다름)
                     updateUI(); 
                 }
             };
@@ -518,17 +520,31 @@
                 els.adminPanel.classList.add('hidden');
                 showToast("로그아웃 되었습니다.");
             };
+            
             const setTrend = async (trend) => {
                 if (!state.isConnected) return;
+                
                 const docRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'enjoy_ticker');
                 const duration = 30 * 1000; 
+                const now = Date.now();
+                
+                // 낙관적 업데이트 (로컬 즉시 반영)
+                state.adminTrend = trend;
+                state.adminTrendUntil = now + duration;
+                state.lastUpdated = now; // 루프 일시 중단
+                updateUI(); // 타이머 즉시 표시
+
                 try {
-                    await window.updateDoc(docRef, { adminTrend: trend, adminTrendUntil: Date.now() + duration });
+                    await window.updateDoc(docRef, { 
+                        adminTrend: trend, 
+                        adminTrendUntil: now + duration,
+                        lastUpdated: now // 다른 클라이언트도 잠깐 멈추게
+                    });
                     const label = trend === 'up' ? '상승' : '하락';
-                    // 스텔스 모드: 알림은 띄우지만 화면에 표시는 안 함
                     showToast(`30초간 ${label} 추세가 적용됩니다.`);
                 } catch (e) { showToast("명령 전송 실패"); }
             };
+            
             const setManualPause = async (pause) => {
                 if (!state.isConnected) return;
                 const docRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'enjoy_ticker');
@@ -600,9 +616,7 @@
 
                 ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
                 
-                // 패딩 추가: 차트가 오른쪽 끝에 닿지 않게 함 (약 40px)
                 const paddingRight = 40; 
-                // 스텝 계산 시 유효 너비를 줄여서 계산
                 const step = (w - paddingRight) / (viewCount - 1); 
                 
                 data.forEach((p, i) => {
@@ -692,7 +706,7 @@
                     els.marketMsgContainer.classList.remove('hidden'); 
                     els.liveDot.classList.remove('animate-pulse');
                     els.liveDot.classList.replace('bg-[#3182f6]', 'bg-gray-400');
-                    els.chartStatus.innerText = "일시정지됨"; // 상태 텍스트도 변경
+                    els.chartStatus.innerText = "일시정지됨";
                     
                     if (state.manualPause) els.marketMsgBadge.innerText = "⏸ 장 일시정지됨";
                     else els.marketMsgBadge.innerText = "🌙 장 마감 (08:00 ~ 23:30)";
@@ -705,13 +719,17 @@
                     }
                 }
 
-                // 관리자 타이머
-                if (state.adminTrend && state.adminTrendUntil > Date.now()) {
+                // 관리자 타이머 (Admin Only)
+                if (state.isAdmin && state.adminTrend && state.adminTrendUntil > Date.now()) {
                     const timeLeft = Math.ceil((state.adminTrendUntil - Date.now()) / 1000);
-                    const mins = Math.floor(timeLeft / 60);
-                    const secs = timeLeft % 60;
-                    els.adminTimer.innerText = `${mins}:${secs < 10 ? '0'+secs : secs}`;
-                    els.adminTimer.classList.remove('hidden');
+                    if (timeLeft > 0) {
+                        const mins = Math.floor(timeLeft / 60);
+                        const secs = timeLeft % 60;
+                        els.adminTimer.innerText = `${mins}:${secs < 10 ? '0'+secs : secs}`;
+                        els.adminTimer.classList.remove('hidden');
+                    } else {
+                        els.adminTimer.classList.add('hidden');
+                    }
                 } else {
                     els.adminTimer.classList.add('hidden');
                 }
