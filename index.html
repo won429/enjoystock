@@ -92,9 +92,9 @@
         .log-sell { background-color: #f4f9ff; color: #3182f6; }
         .log-deposit { background-color: #f2f4f6; color: #333; }
 
-        /* Stepper Input Style */
-        .stepper-btn { width: 32px; height: 32px; border-radius: 8px; background: #f2f4f6; color: #333; font-weight: bold; display: flex; align-items: center; justify-content: center; }
-        .stepper-btn:active { background: #d1d6db; }
+        /* Stepper Input Style (수정됨: 크기 증가) */
+        .stepper-btn { width: 52px; height: 52px; border-radius: 12px; background: #f2f4f6; color: #333; font-weight: bold; font-size: 24px; display: flex; align-items: center; justify-content: center; transition: background-color 0.2s, transform 0.1s; }
+        .stepper-btn:active { background: #d1d6db; transform: scale(0.95); }
     </style>
 </head>
 <body class="flex flex-col h-[100dvh] w-screen relative">
@@ -138,21 +138,25 @@
             </div>
 
             <!-- 가격 입력 -->
-            <div class="mb-4">
-                <label class="block text-xs font-bold text-gray-500 mb-1">가격 (원)</label>
+            <div class="mb-5">
+                <label class="block text-xs font-bold text-gray-500 mb-2">가격 (원)</label>
                 <div class="flex items-center gap-3">
                     <button class="stepper-btn" id="btn-price-down">-</button>
-                    <input type="number" id="input-price" class="flex-1 text-center text-xl font-bold py-2 border-b-2 border-gray-100 outline-none focus:border-[#3182f6]" value="0">
+                    <div class="flex-1 h-[52px] bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-center overflow-hidden">
+                        <input type="number" id="input-price" class="w-full text-center text-xl font-bold bg-transparent outline-none" value="0">
+                    </div>
                     <button class="stepper-btn" id="btn-price-up">+</button>
                 </div>
             </div>
 
             <!-- 수량 입력 -->
             <div class="mb-6">
-                <label class="block text-xs font-bold text-gray-500 mb-1">수량 (주)</label>
+                <label class="block text-xs font-bold text-gray-500 mb-2">수량 (주)</label>
                 <div class="flex items-center gap-3">
                     <button class="stepper-btn" id="btn-qty-down">-</button>
-                    <input type="number" id="input-qty" class="flex-1 text-center text-xl font-bold py-2 border-b-2 border-gray-100 outline-none focus:border-[#3182f6]" value="1">
+                    <div class="flex-1 h-[52px] bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-center overflow-hidden">
+                        <input type="number" id="input-qty" class="w-full text-center text-xl font-bold bg-transparent outline-none" value="1">
+                    </div>
                     <button class="stepper-btn" id="btn-qty-up">+</button>
                 </div>
             </div>
