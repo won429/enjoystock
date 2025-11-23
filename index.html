@@ -498,6 +498,83 @@
             els.btnBuy.onclick = () => handleTrade('buy');
             els.btnSell.onclick = () => handleTrade('sell');
 
+            // --- 추가된 기능: 상단 버튼 및 관리자 로직 ---
+
+            // 1. 홈(뒤로가기) 버튼 -> 링크 이동으로 수정
+            els.btnHome.onclick = () => {
+                window.location.href = 'index.html'; // 메인 링크로 이동 (필요시 주소 변경)
+            };
+
+            // 2. 프로필(관리자) 버튼 클릭 시 모달 오픈
+            els.btnProfile.onclick = () => {
+                els.loginModal.classList.remove('hidden');
+                els.inputPw.value = '';
+                // 모바일 키보드 올라오는 시간 고려
+                setTimeout(() => els.inputPw.focus(), 100);
+            };
+
+            // 3. 모달 취소 버튼
+            els.btnLoginCancel.onclick = () => {
+                els.loginModal.classList.add('hidden');
+            };
+
+            // 4. 모달 로그인 확인 버튼 (비밀번호 0920으로 수정)
+            els.btnLoginConfirm.onclick = () => {
+                const pw = els.inputPw.value;
+                if (pw === '0920') { // 관리자 비밀번호 (0920)
+                    state.isAdmin = true;
+                    els.loginModal.classList.add('hidden');
+                    els.adminPanel.classList.remove('hidden');
+                    showToast("관리자 권한 획득 🔓");
+                    updateUI();
+                } else {
+                    showToast("비밀번호 불일치 ❌");
+                    els.inputPw.value = '';
+                    els.inputPw.focus();
+                }
+            };
+
+            // 5. 관리자 패널 버튼 기능 구현
+            const setAdminTrend = async (trend) => {
+                if (!state.isAdmin) return;
+                const duration = 30 * 1000; // 30초
+                const until = Date.now() + duration;
+                state.adminTrend = trend;
+                state.adminTrendUntil = until;
+                updateUI();
+                showToast(`관리자: ${trend === 'up' ? '상승' : '하락'}장 조작 시작 (30초)`);
+                
+                const docRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'enjoy_ticker');
+                try {
+                    await window.updateDoc(docRef, { adminTrend: trend, adminTrendUntil: until });
+                } catch(e) { console.error(e); }
+            };
+
+            const setMarketStatus = async (pause) => {
+                if (!state.isAdmin) return;
+                state.manualPause = pause;
+                updateUI();
+                showToast(`장 ${pause ? '일시정지' : '재개'} 완료`);
+                const docRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'enjoy_ticker');
+                try {
+                    await window.updateDoc(docRef, { manualPause: pause });
+                } catch(e) { console.error(e); }
+            };
+
+            els.btnAdminUp.onclick = () => setAdminTrend('up');
+            els.btnAdminDown.onclick = () => setAdminTrend('down');
+            els.btnMarketResume.onclick = () => setMarketStatus(false);
+            els.btnMarketPause.onclick = () => setMarketStatus(true);
+            
+            els.btnLogout.onclick = () => {
+                state.isAdmin = false;
+                els.adminPanel.classList.add('hidden');
+                showToast("관리자 로그아웃");
+                updateUI();
+            };
+
+            // ----------------------------------------
+
             els.btnAdminDeposit.onclick = async () => {
                 const amount = parseInt(els.depositInput.value);
                 if (isNaN(amount) || amount <= 0) { showToast("올바른 금액을 입력하세요."); return; }
