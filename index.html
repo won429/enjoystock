@@ -82,9 +82,6 @@
         .slide-up { animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
         
-        /* 장 마감 오버레이 */
-        #market-closed-overlay { backdrop-filter: blur(2px); }
-        
         /* 구분선 */
         .divider-section {
             border-top: 8px solid #f2f4f6;
@@ -105,13 +102,6 @@
     <div id="loading-overlay" class="fixed inset-0 bg-white z-[100] flex flex-col items-center justify-center transition-opacity duration-500">
         <div class="loader mb-4"></div>
         <p class="text-sm text-gray-500">서버 연결 중...</p>
-    </div>
-
-    <!-- 장 마감 오버레이 (차트 위에 표시) -->
-    <div id="market-closed-overlay" class="absolute top-20 left-0 right-0 bottom-0 bg-white/50 z-40 hidden flex items-center justify-center pointer-events-none">
-        <div class="bg-black/80 text-white px-4 py-2 rounded-full text-sm font-bold shadow-lg" id="market-msg">
-            🌙 장 마감 (08:00 ~ 23:30)
-        </div>
     </div>
 
     <!-- 로그인 모달 -->
@@ -169,7 +159,15 @@
     <main class="flex-1 flex flex-col relative overflow-hidden bg-white pb-32"> 
         
         <!-- 차트 뷰 -->
-        <div id="view-chart" class="flex flex-col h-full w-full">
+        <div id="view-chart" class="flex flex-col h-full w-full relative">
+            
+            <!-- 장 마감 알림 (차트 위에 표시) -->
+            <div id="market-msg-container" class="absolute top-10 left-0 right-0 z-40 flex justify-center pointer-events-none hidden">
+                <div class="bg-black/70 backdrop-blur-sm text-white px-3 py-1.5 rounded-full text-xs font-bold shadow-sm flex items-center gap-2" id="market-msg">
+                    🌙 장 마감 (08:00 ~ 23:30)
+                </div>
+            </div>
+
             <div class="px-5 mb-2 flex items-center gap-1">
                 <div class="w-1.5 h-1.5 rounded-full bg-[#3182f6] animate-pulse" id="live-dot"></div>
                 <span class="text-xs font-medium text-[#8b95a1]" id="chart-status-text">실시간</span>
@@ -292,7 +290,7 @@
                 adminIndicator: document.getElementById('admin-indicator'),
                 btnMarketResume: document.getElementById('btn-market-resume'),
                 btnMarketPause: document.getElementById('btn-market-pause'),
-                marketOverlay: document.getElementById('market-closed-overlay'),
+                marketMsgContainer: document.getElementById('market-msg-container'),
                 marketMsg: document.getElementById('market-msg'),
                 chartStatus: document.getElementById('chart-status-text')
             };
@@ -681,13 +679,13 @@
                 const isMarketOpen = (currentTimeVal >= 480 && currentTimeVal < 1410); 
 
                 if (!isMarketOpen || state.manualPause) {
-                    els.marketOverlay.classList.remove('hidden');
+                    els.marketMsgContainer.classList.remove('hidden'); // 상단 배지로 표시
                     els.liveDot.classList.remove('animate-pulse');
                     els.liveDot.classList.replace('bg-[#3182f6]', 'bg-gray-400');
                     if (state.manualPause) els.marketMsg.innerText = "⏸ 장 일시정지됨";
                     else els.marketMsg.innerText = "🌙 장 마감 (08:00 ~ 23:30)";
                 } else {
-                    els.marketOverlay.classList.add('hidden');
+                    els.marketMsgContainer.classList.add('hidden');
                     if (state.chartOffset === 0) {
                         els.liveDot.classList.add('animate-pulse');
                         els.liveDot.classList.replace('bg-gray-400', 'bg-[#3182f6]');
