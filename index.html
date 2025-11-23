@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Enjoy Stock - Admin Mode</title>
+    <title>Enjoy Stock - 2025 Edition</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" type="text/css"/>
     
@@ -59,23 +59,35 @@
         .period-btn { color: #8b95a1; font-size: 13px; font-weight: 500; padding: 6px 12px; border-radius: 6px; transition: all 0.2s; }
         .period-btn.active { background-color: #f2f4f6; color: #191f28; font-weight: 700; }
 
-        /* 호가창 등 */
-        .order-row { display: flex; height: 36px; align-items: center; font-size: 13px; font-weight: 500; border-bottom: 1px solid #f2f4f6; }
-        .order-cell { flex: 1; height: 100%; display: flex; align-items: center; padding: 0 10px; }
-        .cell-price { justify-content: center; font-weight: 700; border-left: 1px solid #f2f4f6; border-right: 1px solid #f2f4f6; }
-        .bg-ask { background-color: #e8f3ff; } .text-ask { color: #3182f6; }
-        .bg-bid { background-color: #ffeaea; } .text-bid { color: #f04452; }
-        .text-up { color: #f04452; } .text-down { color: #3182f6; }
+        /* 호가창 */
+        .order-row { display: grid; grid-template-columns: 1fr 1.2fr 1fr; height: 40px; align-items: center; border-bottom: 1px solid #f2f4f6; position: relative; }
+        .order-cell { position: relative; height: 100%; display: flex; align-items: center; z-index: 10; padding: 0 8px; }
+        .cell-ask-vol { justify-content: flex-end; color: #333; font-weight: 500; }
+        .cell-price { justify-content: center; font-weight: 700; border-left: 1px solid #f2f4f6; border-right: 1px solid #f2f4f6; font-size: 14px; }
+        .cell-bid-vol { justify-content: flex-start; color: #333; font-weight: 500; }
+
+        .bg-ask { background-color: #f4f9ff; } 
+        .text-ask { color: #3182f6; }
+        .bg-bid { background-color: #fff4f4; } 
+        .text-bid { color: #f04452; }
+        .text-up { color: #f04452; } 
+        .text-down { color: #3182f6; }
         
+        .vol-bar { height: 100%; position: absolute; top: 0; z-index: 0; opacity: 0.15; }
+        .vol-bar-ask { right: 0; background-color: #3182f6; } 
+        .vol-bar-bid { left: 0; background-color: #f04452; } 
+
         /* 토스트 & 로딩 */
         @keyframes slideDown { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         .toast-msg { animation: slideDown 0.3s ease-out forwards; }
         .loader { border: 3px solid #f3f3f3; border-radius: 50%; border-top: 3px solid #3182f6; width: 20px; height: 20px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        /* 관리자 패널 애니메이션 */
         .slide-up { animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        
+        /* 장 마감 오버레이 */
+        #market-closed-overlay { backdrop-filter: blur(2px); }
     </style>
 </head>
 <body class="flex flex-col h-[100dvh] w-screen relative">
@@ -87,6 +99,13 @@
     <div id="loading-overlay" class="fixed inset-0 bg-white z-[100] flex flex-col items-center justify-center transition-opacity duration-500">
         <div class="loader mb-4"></div>
         <p class="text-sm text-gray-500">서버 연결 중...</p>
+    </div>
+
+    <!-- 장 마감 오버레이 (차트 위에 표시) -->
+    <div id="market-closed-overlay" class="absolute top-20 left-0 right-0 bottom-0 bg-white/50 z-40 hidden flex items-center justify-center pointer-events-none">
+        <div class="bg-black/80 text-white px-4 py-2 rounded-full text-sm font-bold shadow-lg">
+            🌙 장 마감
+        </div>
     </div>
 
     <!-- 로그인 모달 -->
@@ -106,12 +125,13 @@
         <div class="flex justify-between items-start mb-2">
             <h1 class="text-2xl font-bold tracking-tight text-[#191f28] flex items-center gap-2">
                 엔조이
-                <span class="text-[10px] font-bold text-white bg-[#f04452] px-1.5 py-0.5 rounded text-center">신규상장</span>
-                <span id="sync-status" class="w-2 h-2 rounded-full bg-gray-300 ml-1" title="서버 연결 상태"></span>
+                <!-- 알약 모양으로 개선 -->
+                <span class="text-[9px] font-bold text-white bg-[#f04452] px-2 py-0.5 rounded-full tracking-tight shadow-sm">2025.11.23 상장</span>
+                <span id="sync-status" class="w-2 h-2 rounded-full bg-gray-300 ml-1 flex-shrink-0" title="서버 연결 상태"></span>
             </h1>
             
-            <!-- 관리자 로그인 버튼 (프로필 아이콘) -->
-            <button id="btn-profile" class="w-10 h-10 rounded-full bg-gray-50 hover:bg-gray-100 flex items-center justify-center transition-colors border border-gray-100">
+            <!-- 관리자 로그인 버튼 -->
+            <button id="btn-profile" class="w-10 h-10 rounded-full bg-gray-50 hover:bg-gray-100 flex items-center justify-center transition-colors border border-gray-100 flex-shrink-0">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#8b95a1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
                     <circle cx="12" cy="7" r="4"></circle>
@@ -141,13 +161,13 @@
     </div>
 
     <!-- 메인 컨텐츠 -->
-    <main class="flex-1 flex flex-col relative overflow-hidden bg-white pb-24"> <!-- 하단 패널 공간 확보 -->
+    <main class="flex-1 flex flex-col relative overflow-hidden bg-white pb-32"> 
         
         <!-- 차트 뷰 -->
         <div id="view-chart" class="flex flex-col h-full w-full">
             <div class="px-5 mb-2 flex items-center gap-1">
                 <div class="w-1.5 h-1.5 rounded-full bg-[#3182f6] animate-pulse" id="live-dot"></div>
-                <span class="text-xs font-medium text-[#8b95a1]" id="chart-status-text">실시간 (상장 1일차)</span>
+                <span class="text-xs font-medium text-[#8b95a1]" id="chart-status-text">실시간</span>
             </div>
             <div class="w-full h-[320px] relative mt-2">
                 <canvas id="chart-canvas" class="w-full h-full block"></canvas>
@@ -155,7 +175,6 @@
                 <div id="label-low" class="absolute text-[11px] text-[#3182f6] font-medium transition-all duration-300 pointer-events-none opacity-0">최저 <span id="val-low">100</span>원</div>
                 <div class="absolute left-0 right-0 border-t border-dashed border-[#e5e8eb]" style="top: 50%;" id="base-line"></div>
                 
-                <!-- 관리자 개입 표시기 (Admin Only or All? 보통 숨김) -->
                 <div id="admin-indicator" class="hidden absolute top-2 right-4 bg-black/70 text-white text-[10px] px-2 py-1 rounded-full backdrop-blur-md">
                     ⚡ 관리자 개입 중
                 </div>
@@ -172,12 +191,12 @@
 
         <!-- 호가 뷰 -->
         <div id="view-order" class="hidden flex-col h-full w-full overflow-y-auto pb-10">
-            <div class="flex text-xs text-[#8b95a1] border-b border-[#f2f4f6] pb-2 px-1">
-                <div class="flex-1 text-center">매도잔량</div>
-                <div class="flex-1 text-center">호가</div>
-                <div class="flex-1 text-center">매수잔량</div>
+            <div class="grid grid-cols-[1fr_1.2fr_1fr] text-xs text-[#8b95a1] border-b border-[#f2f4f6] pb-2 px-0 bg-white sticky top-0 z-10">
+                <div class="text-center">매도잔량</div>
+                <div class="text-center">호가</div>
+                <div class="text-center">매수잔량</div>
             </div>
-            <div id="order-book-list" class="flex flex-col"></div>
+            <div id="order-book-list" class="flex flex-col w-full"></div>
         </div>
 
         <!-- 종목정보 뷰 -->
@@ -186,7 +205,7 @@
                 <h3 class="font-bold text-lg mb-2">기업 개요</h3>
                 <div class="text-sm text-[#6b7684] space-y-2">
                     <p><span class="font-bold text-[#333]">종목명</span> 엔조이 (Enjoy)</p>
-                    <p><span class="font-bold text-[#333]">상장일</span> <span id="listing-date">2025.06.20</span> (오늘)</p>
+                    <p><span class="font-bold text-[#333]">상장일</span> 2025.11.23</p>
                     <p><span class="font-bold text-[#333]">시작가</span> 100원</p>
                     <p class="leading-relaxed mt-2 pt-2 border-t border-[#eee]">
                         오늘 코스피 시장에 신규 상장된 엔터테인먼트 기업입니다. 
@@ -196,31 +215,42 @@
         </div>
     </main>
 
-    <!-- 관리자 컨트롤 패널 (로그인 시 등장) -->
-    <div id="admin-panel" class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 z-50 hidden shadow-[0_-5px_20px_rgba(0,0,0,0.1)] slide-up">
+    <!-- 관리자 패널 -->
+    <div id="admin-panel" class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 z-50 hidden shadow-[0_-5px_20px_rgba(0,0,0,0.1)] slide-up max-h-[40vh] overflow-y-auto">
         <div class="flex justify-between items-center mb-3">
             <h4 class="font-bold text-[#191f28] text-sm">🛠️ 관리자 모드</h4>
             <span id="admin-timer" class="text-xs text-red-500 font-mono hidden">03:00</span>
         </div>
-        <div class="grid grid-cols-3 gap-3">
+        
+        <!-- 추세 제어 -->
+        <div class="grid grid-cols-2 gap-3 mb-3">
             <button id="btn-admin-up" class="bg-[#f04452] text-white font-bold py-3 rounded-xl active:scale-95 transition-transform shadow-lg shadow-red-200">
-                📈 상승
+                📈 상승 (3분)
             </button>
             <button id="btn-admin-down" class="bg-[#3182f6] text-white font-bold py-3 rounded-xl active:scale-95 transition-transform shadow-lg shadow-blue-200">
-                📉 하락
-            </button>
-            <button id="btn-logout" class="bg-gray-200 text-gray-700 font-bold py-3 rounded-xl active:scale-95 transition-transform">
-                로그아웃
+                📉 하락 (3분)
             </button>
         </div>
-        <p class="text-[10px] text-gray-400 mt-2 text-center">버튼을 누르면 3분간 효과가 지속됩니다 (전체 사용자 적용)</p>
+
+        <!-- 시장 제어 -->
+        <div class="grid grid-cols-2 gap-3 mb-3">
+            <button id="btn-market-open" class="bg-green-500 text-white font-bold py-2 rounded-xl active:scale-95 transition-transform text-sm">
+                🔔 장 시작
+            </button>
+            <button id="btn-market-close" class="bg-gray-700 text-white font-bold py-2 rounded-xl active:scale-95 transition-transform text-sm">
+                🌙 장 마감
+            </button>
+        </div>
+
+        <button id="btn-logout" class="w-full bg-gray-100 text-gray-500 font-bold py-2 rounded-xl active:scale-95 transition-transform text-xs">
+            로그아웃
+        </button>
     </div>
 
     <script>
         document.addEventListener('firebase-ready', () => {
             // === DOM 요소 ===
             const els = {
-                // ... 기존 요소들 ...
                 price: document.getElementById('current-price'),
                 diffBox: document.getElementById('price-diff-box'),
                 diffLabel: document.getElementById('diff-label'),
@@ -244,8 +274,6 @@
                 toastContainer: document.getElementById('toast-container'),
                 loadingOverlay: document.getElementById('loading-overlay'),
                 syncStatus: document.getElementById('sync-status'),
-                
-                // 관리자 관련
                 btnProfile: document.getElementById('btn-profile'),
                 loginModal: document.getElementById('login-modal'),
                 inputPw: document.getElementById('admin-pw'),
@@ -256,7 +284,10 @@
                 btnAdminDown: document.getElementById('btn-admin-down'),
                 btnLogout: document.getElementById('btn-logout'),
                 adminTimer: document.getElementById('admin-timer'),
-                adminIndicator: document.getElementById('admin-indicator')
+                adminIndicator: document.getElementById('admin-indicator'),
+                btnMarketOpen: document.getElementById('btn-market-open'),
+                btnMarketClose: document.getElementById('btn-market-close'),
+                marketOverlay: document.getElementById('market-closed-overlay')
             };
 
             const fmt = n => n.toLocaleString();
@@ -268,11 +299,6 @@
                 setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity 0.5s'; setTimeout(() => toast.remove(), 500); }, 2000);
             };
 
-            // === 날짜 ===
-            const today = new Date();
-            document.getElementById('listing-date').innerText = 
-                `${today.getFullYear()}.${String(today.getMonth()+1).padStart(2,'0')}.${String(today.getDate()).padStart(2,'0')}`;
-
             // === 상태 ===
             let state = {
                 currentPrice: 100,
@@ -281,10 +307,9 @@
                 tab: 'chart',
                 lastUpdated: 0,
                 isConnected: false,
-                
-                // 관리자 데이터
-                adminTrend: null, // 'up' | 'down' | null
+                adminTrend: null,
                 adminTrendUntil: 0,
+                marketStatus: 'open', // 'open' | 'closed'
                 isAdmin: false
             };
 
@@ -305,7 +330,6 @@
             const startSync = (userId) => {
                 const docRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'enjoy_ticker');
 
-                // Read Listener
                 window.onSnapshot(docRef, (snapshot) => {
                     if (snapshot.exists()) {
                         const data = snapshot.data();
@@ -314,8 +338,8 @@
                         state.lastUpdated = data.lastUpdated || 0;
                         state.adminTrend = data.adminTrend || null;
                         state.adminTrendUntil = data.adminTrendUntil || 0;
+                        state.marketStatus = data.marketStatus || 'open';
                         state.isConnected = true;
-                        
                         els.syncStatus.classList.remove('bg-gray-300', 'bg-red-500');
                         els.syncStatus.classList.add('bg-green-500');
                         updateUI();
@@ -327,30 +351,24 @@
                     els.syncStatus.classList.add('bg-red-500');
                 });
 
-                // Write Loop (1초마다)
                 setInterval(async () => {
                     if (!state.isConnected) return;
                     
+                    // 장 마감 상태면 업데이트 중단
+                    if (state.marketStatus === 'closed') return;
+
                     const now = Date.now();
-                    // 1.2초 이상 업데이트 없으면 내가 서버 역할
                     if (now - state.lastUpdated > 1200) {
-                        
                         let change = 0;
                         
-                        // [관리자 개입 로직]
+                        // 관리자 개입
                         if (state.adminTrend && state.adminTrendUntil > now) {
-                            if (state.adminTrend === 'up') {
-                                // 상승: 0 ~ +4 (평균 +2)
-                                change = Math.floor(Math.random() * 5); 
-                            } else {
-                                // 하락: -4 ~ 0 (평균 -2)
-                                change = Math.floor(Math.random() * -5) + 1; // -4~0
-                                if (change > 0) change = 0; // 안전장치
-                            }
+                            if (state.adminTrend === 'up') { change = Math.floor(Math.random() * 6) + 2; } 
+                            else { change = Math.floor(Math.random() * -6) - 2; }
                         } else {
-                            // 일반 랜덤: -3 ~ +3
-                            const volatility = Math.random() > 0.8 ? 5 : 2; 
-                            change = Math.floor((Math.random() - 0.5) * volatility * 2);
+                            // 완전 랜덤 (상승/하락 50:50)
+                            change = Math.floor(Math.random() * 11) - 5; 
+                            if (change === 0) change = Math.random() > 0.5 ? 1 : -1;
                         }
 
                         let nextPrice = state.currentPrice + change;
@@ -359,12 +377,9 @@
                         const newHistory = [...state.history, nextPrice];
                         if (newHistory.length > 300) newHistory.shift();
                         
-                        // 트렌드 만료 체크
                         let newTrend = state.adminTrend;
                         let newTrendUntil = state.adminTrendUntil;
-                        if (state.adminTrend && now > state.adminTrendUntil) {
-                            newTrend = null; // 시간 종료
-                        }
+                        if (state.adminTrend && now > state.adminTrendUntil) { newTrend = null; }
 
                         try {
                             await window.updateDoc(docRef, {
@@ -372,7 +387,8 @@
                                 history: newHistory,
                                 lastUpdated: now,
                                 adminTrend: newTrend,
-                                adminTrendUntil: newTrendUntil
+                                adminTrendUntil: newTrendUntil,
+                                marketStatus: state.marketStatus
                             });
                         } catch (e) {}
                     }
@@ -386,67 +402,58 @@
                         history: [100],
                         lastUpdated: Date.now(),
                         adminTrend: null,
-                        adminTrendUntil: 0
+                        adminTrendUntil: 0,
+                        marketStatus: 'open'
                     });
                 } catch(e) {}
             };
 
-            // === 2. 관리자 기능 로직 ===
-            // 로그인 모달
+            // === 2. 관리자 기능 ===
             els.btnProfile.onclick = () => {
-                if (state.isAdmin) {
-                    showToast("이미 관리자로 로그인되어 있습니다.");
-                } else {
-                    els.loginModal.classList.remove('hidden');
-                    els.inputPw.value = '';
-                    els.inputPw.focus();
-                }
+                if (state.isAdmin) { showToast("이미 관리자로 로그인되어 있습니다."); } 
+                else { els.loginModal.classList.remove('hidden'); els.inputPw.value = ''; els.inputPw.focus(); }
             };
-            
             els.btnLoginCancel.onclick = () => els.loginModal.classList.add('hidden');
-            
             els.btnLoginConfirm.onclick = () => {
                 if (els.inputPw.value === '0920') {
                     state.isAdmin = true;
                     els.loginModal.classList.add('hidden');
                     els.adminPanel.classList.remove('hidden');
                     showToast("관리자 모드 실행됨");
-                } else {
-                    showToast("비밀번호가 틀렸습니다.");
-                    els.inputPw.value = '';
-                }
+                } else { showToast("비밀번호가 틀렸습니다."); els.inputPw.value = ''; }
             };
-
-            // 로그아웃
             els.btnLogout.onclick = () => {
                 state.isAdmin = false;
                 els.adminPanel.classList.add('hidden');
                 showToast("로그아웃 되었습니다.");
             };
-
-            // 상승/하락 버튼 (Firestore 업데이트)
             const setTrend = async (trend) => {
                 if (!state.isConnected) return;
                 const docRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'enjoy_ticker');
-                const duration = 3 * 60 * 1000; // 3분
-                
+                const duration = 3 * 60 * 1000; 
                 try {
-                    await window.updateDoc(docRef, {
-                        adminTrend: trend,
-                        adminTrendUntil: Date.now() + duration
-                    });
+                    await window.updateDoc(docRef, { adminTrend: trend, adminTrendUntil: Date.now() + duration });
                     const label = trend === 'up' ? '상승' : '하락';
                     showToast(`3분간 ${label} 추세가 적용됩니다.`);
-                } catch (e) {
-                    showToast("명령 전송 실패");
-                }
+                } catch (e) { showToast("명령 전송 실패"); }
+            };
+            
+            // 장 상태 제어 함수
+            const setMarketStatus = async (status) => {
+                if (!state.isConnected) return;
+                const docRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'enjoy_ticker');
+                try {
+                    await window.updateDoc(docRef, { marketStatus: status });
+                    showToast(status === 'open' ? "장이 시작되었습니다." : "장이 마감되었습니다.");
+                } catch (e) { showToast("명령 전송 실패"); }
             };
 
             els.btnAdminUp.onclick = () => setTrend('up');
             els.btnAdminDown.onclick = () => setTrend('down');
+            els.btnMarketOpen.onclick = () => setMarketStatus('open');
+            els.btnMarketClose.onclick = () => setMarketStatus('closed');
 
-
-            // === 3. UI 렌더링 (차트/호가) ===
+            // === 3. UI 렌더링 ===
             const ctx = els.canvas.getContext('2d');
             const dpr = window.devicePixelRatio || 1;
             let size = { w: 0, h: 0 };
@@ -474,28 +481,18 @@
                 const range = maxVal - minVal;
                 const baseY = h - ((100 - minVal) / range) * h;
                 
-                // 기준선
                 els.baseLine.style.top = `${(baseY / h) * 100}%`;
                 const isUp = state.currentPrice >= 100;
                 const color = isUp ? '#f04452' : '#3182f6';
                 
-                // 라벨/점 색상
-                els.labelHigh.style.color = color;
-                els.labelLow.style.color = color;
-                els.liveDot.style.backgroundColor = color;
+                els.labelHigh.style.color = color; els.labelLow.style.color = color; els.liveDot.style.backgroundColor = color;
 
-                ctx.beginPath();
-                ctx.strokeStyle = color;
-                ctx.lineWidth = 2.5;
-                ctx.lineCap = 'round';
-                ctx.lineJoin = 'round';
-
+                ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
                 if (data.length === 1) { ctx.moveTo(0, baseY); ctx.lineTo(w, baseY); } 
                 else {
                     const step = w / (data.length - 1);
                     data.forEach((p, i) => {
-                        const x = i * step;
-                        const y = h - ((p - minVal) / range) * h;
+                        const x = i * step; const y = h - ((p - minVal) / range) * h;
                         if(i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
                     });
                 }
@@ -506,19 +503,13 @@
                     const grad = ctx.createLinearGradient(0, 0, 0, h);
                     grad.addColorStop(0, isUp ? 'rgba(240, 68, 82, 0.05)' : 'rgba(49, 130, 246, 0.05)');
                     grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
-                    ctx.fillStyle = grad;
-                    ctx.fill();
+                    ctx.fillStyle = grad; ctx.fill();
                 }
 
-                // Max/Min Labels
-                const maxValData = Math.max(...data);
-                const minValData = Math.min(...data);
+                const maxValData = Math.max(...data); const minValData = Math.min(...data);
                 const step = w / (Math.max(data.length - 1, 1));
-                const maxIdx = data.lastIndexOf(maxValData);
-                const minIdx = data.lastIndexOf(minValData);
-                
-                els.valHigh.innerText = Math.round(maxValData);
-                els.valLow.innerText = Math.round(minValData);
+                const maxIdx = data.lastIndexOf(maxValData); const minIdx = data.lastIndexOf(minValData);
+                els.valHigh.innerText = Math.round(maxValData); els.valLow.innerText = Math.round(minValData);
                 
                 const maxPos = { x: maxIdx * step, y: h - ((maxValData - minVal) / range) * h };
                 const minPos = { x: minIdx * step, y: h - ((minValData - minVal) / range) * h };
@@ -529,16 +520,9 @@
                 els.labelHigh.style.opacity = 1; els.labelHigh.style.left = `${labelX_Max}px`; els.labelHigh.style.top = `${maxPos.y - 25}px`;
                 els.labelLow.style.opacity = 1; els.labelLow.style.left = `${labelX_Min}px`; els.labelLow.style.top = `${minPos.y + 10}px`;
                 
-                // Dots
-                [maxPos, minPos].forEach(pos => {
-                    ctx.beginPath(); ctx.fillStyle = 'white'; ctx.strokeStyle = color; ctx.lineWidth = 2;
-                    ctx.arc(pos.x, pos.y, 3, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-                });
+                [maxPos, minPos].forEach(pos => { ctx.beginPath(); ctx.fillStyle = 'white'; ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.arc(pos.x, pos.y, 3, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); });
                 
-                // Last Dot
-                const lastIdx = data.length - 1;
-                const lastX = lastIdx * step;
-                const lastY = h - ((data[lastIdx] - minVal) / range) * h;
+                const lastIdx = data.length - 1; const lastX = lastIdx * step; const lastY = h - ((data[lastIdx] - minVal) / range) * h;
                 ctx.beginPath(); ctx.fillStyle = color; ctx.arc(lastX, lastY, 4, 0, Math.PI * 2); ctx.fill();
             };
 
@@ -546,11 +530,20 @@
                 const curr = state.currentPrice;
                 const spread = Math.max(1, Math.floor(curr * 0.01)); 
                 let html = '';
+                // 모바일 최적화 구조
                 for(let i=5; i>=1; i--) {
                     const p = curr + (i * spread);
                     const vol = Math.floor(Math.random() * 2000) + 100;
                     const width = Math.min(vol / 30, 100); 
-                    html += `<div class="order-row bg-ask relative"><div class="vol-bar vol-bar-ask" style="width: ${width}%;"></div><div class="order-cell cell-ask-vol">${vol}</div><div class="order-cell cell-price text-down">${fmt(p)}</div><div class="order-cell cell-bid-vol"></div></div>`;
+                    html += `
+                    <div class="order-row bg-ask">
+                        <div class="order-cell cell-ask-vol">
+                            <div class="vol-bar vol-bar-ask" style="width: ${width}%;"></div>
+                            <span class="relative z-10">${vol}</span>
+                        </div>
+                        <div class="order-cell cell-price text-down">${fmt(p)}</div>
+                        <div class="order-cell cell-bid-vol"></div>
+                    </div>`;
                 }
                 for(let i=0; i<5; i++) {
                     const p = curr - (i * spread);
@@ -558,12 +551,19 @@
                     const priceDisplay = p;
                     const vol = Math.floor(Math.random() * 2000) + 100;
                     const width = Math.min(vol / 30, 100);
-                    html += `<div class="order-row bg-bid relative"><div class="vol-bar vol-bar-bid" style="width: ${width}%;"></div><div class="order-cell cell-ask-vol"></div><div class="order-cell cell-price text-up">${fmt(priceDisplay)}</div><div class="order-cell cell-bid-vol">${vol}</div></div>`;
+                    html += `
+                    <div class="order-row bg-bid">
+                        <div class="order-cell cell-ask-vol"></div>
+                        <div class="order-cell cell-price text-up">${fmt(priceDisplay)}</div>
+                        <div class="order-cell cell-bid-vol">
+                            <div class="vol-bar vol-bar-bid" style="width: ${width}%;"></div>
+                            <span class="relative z-10">${vol}</span>
+                        </div>
+                    </div>`;
                 }
                 els.orderList.innerHTML = html;
             };
 
-            // === UI Loop ===
             const updateUI = () => {
                 els.price.innerText = fmt(state.currentPrice);
                 const diff = state.currentPrice - 100; 
@@ -575,8 +575,9 @@
                 els.rate.innerText = `(${sign}${rate}%)`;
                 els.diffBox.className = `flex items-center gap-1 ${isUp ? 'text-up' : 'text-down'}`;
 
-                // 관리자 타이머 표시
                 const now = Date.now();
+                
+                // 관리자 표시
                 if (state.adminTrend && state.adminTrendUntil > now) {
                     els.adminIndicator.classList.remove('hidden');
                     const timeLeft = Math.ceil((state.adminTrendUntil - now) / 1000);
@@ -589,15 +590,24 @@
                     els.adminTimer.classList.add('hidden');
                 }
 
+                // 장 마감 표시
+                if (state.marketStatus === 'closed') {
+                    els.marketOverlay.classList.remove('hidden');
+                    els.liveDot.classList.remove('animate-pulse');
+                    els.liveDot.classList.replace('bg-[#3182f6]', 'bg-gray-400');
+                } else {
+                    els.marketOverlay.classList.add('hidden');
+                    els.liveDot.classList.add('animate-pulse');
+                    els.liveDot.classList.replace('bg-gray-400', 'bg-[#3182f6]');
+                }
+
                 if(state.tab === 'chart') drawChart();
                 else if(state.tab === 'order') renderOrderBook();
             };
 
-            // === 탭/버튼 핸들러 ===
             els.periodBtns.forEach(btn => {
                 btn.onclick = (e) => {
-                    els.periodBtns.forEach(b => b.classList.remove('active'));
-                    e.target.classList.add('active');
+                    els.periodBtns.forEach(b => b.classList.remove('active')); e.target.classList.add('active');
                     if (e.target.dataset.period !== '1D') showToast("오늘 상장되어 과거 데이터가 없습니다.");
                     drawChart();
                 };
@@ -614,18 +624,9 @@
                 els.viewOrder.classList.add('hidden');
                 els.viewInfo.classList.add('hidden');
 
-                if(tabName === 'chart') {
-                    els.viewChart.classList.remove('hidden');
-                    resize();
-                    drawChart();
-                } else if(tabName === 'order') {
-                    els.viewOrder.classList.remove('hidden');
-                    els.viewOrder.classList.add('flex');
-                    renderOrderBook();
-                } else {
-                    els.viewInfo.classList.remove('hidden');
-                    els.viewInfo.classList.add('flex');
-                }
+                if(tabName === 'chart') { els.viewChart.classList.remove('hidden'); resize(); drawChart(); } 
+                else if(tabName === 'order') { els.viewOrder.classList.remove('hidden'); els.viewOrder.classList.add('flex'); renderOrderBook(); } 
+                else { els.viewInfo.classList.remove('hidden'); els.viewInfo.classList.add('flex'); }
             };
 
             els.tabChart.onclick = () => switchTab('chart');
