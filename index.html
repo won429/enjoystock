@@ -46,8 +46,8 @@
             font-family: "Pretendard", -apple-system, sans-serif;
             background-color: #ffffff;
             color: #191f28;
-            overflow: hidden;
-            touch-action: none;
+            overflow: hidden; /* 전체 페이지 스크롤은 막고 main만 스크롤 */
+            /* touch-action: none; 제거하여 기본 스크롤 허용 */
             -webkit-tap-highlight-color: transparent;
         }
 
@@ -157,22 +157,23 @@
         <button id="tab-info" class="tab-item py-2.5">종목정보</button>
     </div>
 
-    <!-- 메인 컨텐츠 -->
-    <main class="flex-1 flex flex-col relative overflow-hidden bg-white pb-36"> 
+    <!-- 메인 컨텐츠 (스크롤 가능하도록 수정됨) -->
+    <main class="flex-1 flex flex-col relative overflow-y-auto bg-white pb-36 scrollbar-hide"> 
         
         <!-- 차트 뷰 -->
-        <div id="view-chart" class="flex flex-col h-full w-full relative">
+        <div id="view-chart" class="flex flex-col w-full relative">
             <!-- 장 마감 배지 -->
             <div id="market-msg-container" class="absolute top-10 left-0 right-0 z-40 flex justify-center pointer-events-none hidden">
                 <div class="bg-black/70 backdrop-blur-sm text-white px-3 py-1.5 rounded-full text-xs font-bold shadow-sm flex items-center gap-2" id="market-msg-badge">🌙 장 마감</div>
             </div>
 
-            <div class="px-5 mb-2 flex items-center gap-1">
+            <div class="px-5 mb-2 flex items-center gap-1 mt-4">
                 <div class="w-1.5 h-1.5 rounded-full bg-[#3182f6] animate-pulse" id="live-dot"></div>
                 <span class="text-xs font-medium text-[#8b95a1]" id="chart-status-text">실시간</span>
             </div>
-            <!-- 차트 영역 -->
-            <div class="w-full h-[280px] relative mt-2 touch-pan-x cursor-grab active:cursor-grabbing" id="chart-container">
+            
+            <!-- 차트 영역 (가로 드래그를 위해 touch-action: pan-y 적용) -->
+            <div class="w-full h-[280px] relative mt-2 touch-pan-y cursor-grab active:cursor-grabbing" id="chart-container">
                 <canvas id="chart-canvas" class="w-full h-full block"></canvas>
                 <div id="label-high" class="absolute text-[11px] text-[#3182f6] font-medium transition-all duration-300 pointer-events-none opacity-0">최고 <span id="val-high"></span></div>
                 <div id="label-low" class="absolute text-[11px] text-[#3182f6] font-medium transition-all duration-300 pointer-events-none opacity-0">최저 <span id="val-low"></span></div>
@@ -180,7 +181,9 @@
             </div>
             
             <!-- 구분선 -->
-            <div class="divider-section mx-5"></div>
+            <div class="divider-section mx-5">
+                <p class="text-[10px] text-gray-300 mb-2">차트를 좌우로 드래그하여 과거 기록을 확인하세요</p>
+            </div>
 
             <!-- 내 자산 섹션 (공용) -->
             <div class="px-5 mt-2">
@@ -204,8 +207,8 @@
                 </div>
 
                 <!-- 주문 내역 (로그) -->
-                <div class="mt-6">
-                    <h3 class="text-sm font-bold text-[#191f28] mb-2">📋 실시간 체결 내역</h3>
+                <div class="mt-8 mb-8">
+                    <h3 class="text-sm font-bold text-[#191f28] mb-3">📋 실시간 체결 내역</h3>
                     <div id="trade-history-list" class="flex flex-col">
                         <div class="text-center py-4 text-xs text-gray-400">아직 거래 내역이 없습니다.</div>
                     </div>
@@ -214,7 +217,7 @@
         </div>
 
         <!-- 호가 뷰 -->
-        <div id="view-order" class="hidden flex-col h-full w-full overflow-y-auto pb-10">
+        <div id="view-order" class="hidden flex-col w-full pb-10">
             <div class="grid grid-cols-[1fr_1.2fr_1fr] text-xs text-[#8b95a1] border-b border-[#f2f4f6] pb-2 px-0 bg-white sticky top-0 z-10">
                 <div class="text-center">매도잔량</div><div class="text-center">호가</div><div class="text-center">매수잔량</div>
             </div>
@@ -222,7 +225,7 @@
         </div>
 
         <!-- 종목정보 뷰 -->
-        <div id="view-info" class="hidden flex-col h-full w-full px-5 pt-4">
+        <div id="view-info" class="hidden flex-col w-full px-5 pt-4">
             <div class="bg-[#f9fafb] p-5 rounded-2xl border border-[#f2f4f6]">
                 <h3 class="font-bold text-lg mb-2">기업 개요</h3>
                 <div class="text-sm text-[#6b7684] space-y-2">
@@ -579,15 +582,6 @@
                 } else els.adminTimer.classList.add('hidden');
                 if(state.tab === 'chart') drawChart(); else if(state.tab === 'order') renderOrderBook();
             };
-
-            els.btnHome.onclick = () => { window.location.href = "https://won429.github.io/enjoysite/"; };
-            els.btnProfile.onclick = () => { if (state.isAdmin) showToast("이미 관리자로 로그인되어 있습니다."); else { els.loginModal.classList.remove('hidden'); els.inputPw.value = ''; els.inputPw.focus(); } };
-            els.btnLoginCancel.onclick = () => els.loginModal.classList.add('hidden');
-            els.btnLoginConfirm.onclick = () => { if (els.inputPw.value === '0920') { state.isAdmin = true; els.loginModal.classList.add('hidden'); els.adminPanel.classList.remove('hidden'); showToast("관리자 모드 실행됨"); } else { showToast("비밀번호가 틀렸습니다."); els.inputPw.value = ''; } };
-            els.btnLogout.onclick = () => { state.isAdmin = false; els.adminPanel.classList.add('hidden'); showToast("로그아웃 되었습니다."); };
-            const setTrend = async (trend) => { if (!state.isConnected) return; const docRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'enjoy_ticker'); const duration = 30 * 1000; const now = Date.now(); state.adminTrend = trend; state.adminTrendUntil = now + duration; state.lastUpdated = now; updateUI(); try { await window.updateDoc(docRef, { adminTrend: trend, adminTrendUntil: now + duration, lastUpdated: now }); const label = trend === 'up' ? '상승' : '하락'; showToast(`30초간 ${label} 추세가 적용됩니다.`); } catch (e) { showToast("명령 전송 실패"); } };
-            const setManualPause = async (pause) => { if (!state.isConnected) return; const docRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'enjoy_ticker'); try { await window.updateDoc(docRef, { manualPause: pause }); showToast(pause ? "장이 일시정지 되었습니다." : "장이 재개되었습니다."); } catch (e) { showToast("명령 전송 실패"); } };
-            els.btnAdminUp.onclick = () => setTrend('up'); els.btnAdminDown.onclick = () => setTrend('down'); els.btnMarketResume.onclick = () => setManualPause(false); els.btnMarketPause.onclick = () => setManualPause(true);
 
             const switchTab = (tabName) => {
                 state.tab = tabName;
