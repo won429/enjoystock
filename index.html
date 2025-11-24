@@ -351,6 +351,13 @@
                 <span id="admin-timer" class="text-xs text-red-500 font-mono hidden bg-red-100 px-2 py-0.5 rounded-full">00:30</span>
             </div>
         </div>
+        
+        <!-- 급등/급락 버튼 (추가됨) -->
+        <div class="grid grid-cols-2 gap-3 mb-3">
+            <button id="btn-admin-surge" class="bg-red-600 text-white font-bold py-3 rounded-xl active:scale-95 transition-transform">🚀 급등 (10~20%)</button>
+            <button id="btn-admin-crash" class="bg-blue-600 text-white font-bold py-3 rounded-xl active:scale-95 transition-transform">📉 급락 (10~20%)</button>
+        </div>
+
         <div class="grid grid-cols-2 gap-3 mb-3">
             <button id="btn-admin-up" class="bg-[#f04452] text-white font-bold py-3 rounded-xl active:scale-95 transition-transform">📈 상승 (30초)</button>
             <button id="btn-admin-down" class="bg-[#3182f6] text-white font-bold py-3 rounded-xl active:scale-95 transition-transform">📉 하락 (30초)</button>
@@ -360,7 +367,7 @@
             <button id="btn-market-pause" class="bg-gray-700 text-white font-bold py-2 rounded-xl active:scale-95 transition-transform text-sm">⏸ 장 일시정지</button>
         </div>
         
-        <!-- 기준가(어제 마감가) 수동 설정 (추가됨) -->
+        <!-- 기준가(어제 마감가) 수동 설정 -->
         <div class="bg-gray-50 p-3 rounded-xl mb-3 border border-gray-200">
             <p class="text-xs font-bold text-gray-500 mb-2">💰 기준가(어제 마감가) 수동 설정</p>
             <div class="flex gap-2">
@@ -400,6 +407,11 @@
                 btnLoginConfirm: document.getElementById('btn-login-confirm'), btnLoginCancel: document.getElementById('btn-login-cancel'),
                 adminPanel: document.getElementById('admin-panel'), btnAdminUp: document.getElementById('btn-admin-up'), btnAdminDown: document.getElementById('btn-admin-down'), btnLogout: document.getElementById('btn-logout'), adminTimer: document.getElementById('admin-timer'),
                 btnMarketResume: document.getElementById('btn-market-resume'), btnMarketPause: document.getElementById('btn-market-pause'),
+                
+                // New Admin Buttons
+                btnAdminSurge: document.getElementById('btn-admin-surge'), 
+                btnAdminCrash: document.getElementById('btn-admin-crash'),
+
                 marketMsgContainer: document.getElementById('market-msg-container'), marketMsgBadge: document.getElementById('market-msg-badge'), chartStatus: document.getElementById('chart-status-text'),
                 // Wallet & History (Chart View)
                 myCash: document.getElementById('my-cash'), myStockCnt: document.getElementById('my-stock-cnt'), myAvgPrice: document.getElementById('my-avg-price'), myReturnRate: document.getElementById('my-return-rate'),
@@ -416,8 +428,8 @@
                 // Admin Inputs
                 depositInput: document.getElementById('deposit-input'), 
                 btnAdminDeposit: document.getElementById('btn-admin-deposit'),
-                basePriceInput: document.getElementById('base-price-input'), // New
-                btnAdminBasePrice: document.getElementById('btn-admin-base-price'), // New
+                basePriceInput: document.getElementById('base-price-input'), 
+                btnAdminBasePrice: document.getElementById('btn-admin-base-price'), 
 
                 historyList: document.getElementById('trade-history-list'), wHistoryList: document.getElementById('w-trade-history-list'),
                 
@@ -489,7 +501,6 @@
                 window.onSnapshot(docRef, (snapshot) => {
                     if (snapshot.exists()) {
                         const data = snapshot.data();
-                        // FORCE OVERWRITE IF DATA IS FROM OLD TEST (100 WON)
                         if (data.basePrice === 100) {
                              window.updateDoc(docRef, {
                                 currentPrice: 983, 
@@ -497,7 +508,7 @@
                                 history: [983],
                                 basePriceLabel: "어제보다"
                             });
-                            return; // Skip this update, wait for next
+                            return; 
                         }
 
                         state.currentPrice = data.currentPrice; state.history = data.history || [983]; state.lastUpdated = data.lastUpdated || 0;
@@ -563,8 +574,8 @@
                                 await window.updateDoc(docRef, {
                                     currentPrice: nextPrice, history: newHistory, lastUpdated: Date.now(),
                                     adminTrend: newTrend, adminTrendUntil: newTrendUntil, manualPause: state.manualPause,
-                                    basePrice: nextBasePrice, // Ensure basePrice is updated
-                                    basePriceLabel: nextBaseLabel, // Ensure basePriceLabel is updated
+                                    basePrice: nextBasePrice, 
+                                    basePriceLabel: nextBaseLabel, 
                                     marketMood: currentMood, nextMoodChange: nextChange
                                 });
                             } catch (e) {}
@@ -708,10 +719,9 @@
                     const pending = data.pendingOrders || [];
                     const orderIndex = pending.findIndex(o => o.id === orderId);
                     
-                    if (orderIndex === -1) return; // Already removed/executed
+                    if (orderIndex === -1) return;
                     const order = pending[orderIndex];
                     
-                    // Refund
                     let newCash = data.cash || 0;
                     let newStocks = data.stocks || 0;
                     
@@ -778,14 +788,12 @@
                 const qty = parseInt(els.inputQty.value);
                 if (price <= 0 || qty <= 0) { showToast("가격과 수량을 확인해주세요."); return; }
                 
-                // placeOrder now returns boolean indicating success
                 const success = await placeOrder(state.tradeType, qty, price);
                 if (success) {
                     els.tradeModal.classList.add('hidden');
                 }
             };
 
-            // Places an order (Immediate or Pending) -> Returns boolean success
             const placeOrder = async (type, qty, price) => {
                 const walletDocRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'shared_wallet');
                 let success = false;
@@ -841,7 +849,7 @@
 
                         transaction.update(walletDocRef, { cash, stocks, avgPrice, pendingOrders: pending });
                     });
-                    success = true; // Transaction completed successfully
+                    success = true;
                 } catch(e) {
                     showToast(typeof e === 'string' ? e : "거래 실패");
                     success = false;
@@ -991,6 +999,52 @@
                     els.inputPw.focus();
                 }
             };
+
+            // NEW: Trigger Sharp Move
+            const triggerSharpMove = async (type) => {
+                if (!state.isAdmin) return;
+                
+                const factor = 0.10 + (Math.random() * 0.10); // 0.10 ~ 0.20 (10% ~ 20%)
+                let change = Math.floor(state.currentPrice * factor);
+                
+                let nextPrice;
+                let logMsg;
+                
+                if (type === 'surge') {
+                    nextPrice = state.currentPrice + change;
+                    logMsg = `관리자: 급등 이벤트 발생 (+${(factor*100).toFixed(1)}%)`;
+                } else {
+                    nextPrice = Math.max(1, state.currentPrice - change);
+                    logMsg = `관리자: 급락 이벤트 발생 (-${(factor*100).toFixed(1)}%)`;
+                }
+
+                // Update Local State for instant feedback
+                const newHistory = [...state.history, nextPrice];
+                if (newHistory.length > 1000) newHistory.shift();
+                
+                state.currentPrice = nextPrice;
+                state.history = newHistory;
+                state.lastUpdated = Date.now();
+                
+                updateUI();
+                updateWalletUI(); 
+                checkPendingOrders(nextPrice);
+                showToast(logMsg);
+
+                // Firestore Update
+                const docRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'enjoy_ticker');
+                try {
+                    await window.updateDoc(docRef, {
+                        currentPrice: nextPrice,
+                        history: newHistory,
+                        lastUpdated: Date.now()
+                    });
+                } catch(e) { console.error(e); }
+            };
+
+            // Event Listeners for Surge/Crash
+            els.btnAdminSurge.onclick = () => triggerSharpMove('surge');
+            els.btnAdminCrash.onclick = () => triggerSharpMove('crash');
 
             const setAdminTrend = async (trend) => {
                 if (!state.isAdmin) return;
