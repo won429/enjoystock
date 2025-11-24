@@ -576,13 +576,8 @@
                 window.onSnapshot(docRef, (snapshot) => {
                     if (snapshot.exists()) {
                         const data = snapshot.data();
-                        
-                        // 🔹 [수정] 주가가 983원(구버전)이거나 100원(초기값)이면 742원으로 강제 업데이트
-                        if (data.basePrice === 100 || data.currentPrice === 983) { 
-                            window.updateDoc(docRef, { currentPrice: 742, basePrice: 742, history: [742], basePriceLabel: "어제보다" }); 
-                            return; 
-                        }
-
+                        // 🔹 [안전 버전 복구] 강제 업데이트 로직 제거됨.
+                        // 기존 데이터를 그대로 사용합니다.
                         state.currentPrice = data.currentPrice; state.history = data.history || [742]; state.lastUpdated = data.lastUpdated || 0;
                         state.adminTrend = data.adminTrend || null; state.adminTrendUntil = data.adminTrendUntil || 0; state.manualPause = data.manualPause || false;
                         state.basePrice = data.basePrice || 742; state.basePriceLabel = data.basePriceLabel || "시작가보다";
@@ -645,15 +640,13 @@
                 window.onSnapshot(walletDocRef, (snapshot) => { 
                     if (snapshot.exists()) { 
                         const data = snapshot.data(); 
-                        // 🔹 [수정] 지갑이 초기 상태(0원, 0주)라면 복구 데이터로 강제 업데이트
-                        if (data.cash === 0 && data.stocks === 0) {
-                            window.updateDoc(walletDocRef, { cash: 3348, stocks: 35, avgPrice: 556 });
-                            return;
-                        }
+                        // 🔹 [안전 버전 복구] 강제 업데이트 로직 제거됨.
+                        // 사용자가 파산(0원, 0주)해도 데이터를 되돌리지 않습니다.
                         state.walletCash = data.cash || 0; state.walletStocks = data.stocks || 0; state.walletAvgPrice = data.avgPrice || 0; state.pendingOrders = data.pendingOrders || []; updateWalletUI(); 
                     } else { 
-                        // 🔹 [수정] 문서가 없으면 바로 복구 데이터로 생성
-                        window.setDoc(walletDocRef, { cash: 3348, stocks: 35, avgPrice: 556, pendingOrders: [] }); 
+                        // 문서가 아예 없는 경우에만 초기값 설정 (새로운 시작은 0원으로 설정됨. 만약 복구값을 원하면 여기서 수정)
+                        // 여기서는 안전하게 0원으로 시작하도록 둡니다.
+                        window.setDoc(walletDocRef, { cash: 0, stocks: 0, avgPrice: 0, pendingOrders: [] }); 
                     } 
                 }); 
             };
