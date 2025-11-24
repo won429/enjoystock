@@ -13,23 +13,32 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, onSnapshot, setDoc, updateDoc, getDoc, runTransaction } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
+        // 🔹 Firebase 설정 입력 완료
         const firebaseConfig = {
-            apiKey: "AIzaSyDvTSA6_cpS60VxMxfv__NmYPn7h1vDtJs",
-            authDomain: "enjoy-stock.firebaseapp.com",
-            projectId: "enjoy-stock",
-            storageBucket: "enjoy-stock.firebasestorage.app",
-            messagingSenderId: "131055020348",
-            appId: "1:131055020348:web:1d22b228c1916643861639"
+            apiKey: "AIzaSyABn9xi7a-3LyLpvS6HT03gJUGTlQkgHmk",
+            authDomain: "enjoystock.firebaseapp.com",
+            projectId: "enjoystock",
+            storageBucket: "enjoystock.firebasestorage.app",
+            messagingSenderId: "981969177924",
+            appId: "1:981969177924:web:51b0093a0d1b001ead9b11"
         };
 
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-        const appId = 'enjoy-stock-live';
+        // 🔹 설정값이 비어있는지 확인하여 오류 방지
+        if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "") {
+            const app = initializeApp(firebaseConfig);
+            const auth = getAuth(app);
+            const db = getFirestore(app);
+            const appId = 'enjoy-stock-live';
 
-        window.db = db;
-        window.auth = auth;
-        window.appId = appId;
+            window.db = db;
+            window.auth = auth;
+            window.appId = appId;
+            window.isFirebaseInitialized = true; // 초기화 성공 플래그
+        } else {
+            console.warn("⚠️ Firebase 설정이 비어있습니다. 앱이 데모 모드(또는 설정 대기 모드)로 실행됩니다.");
+            window.isFirebaseInitialized = false; // 초기화 실패 플래그
+        }
+
         window.signInAnonymously = signInAnonymously;
         window.onAuthStateChanged = onAuthStateChanged;
         window.doc = doc;
@@ -39,6 +48,7 @@
         window.getDoc = getDoc;
         window.runTransaction = runTransaction;
         
+        // 모듈 로드 완료 이벤트 발송
         document.dispatchEvent(new Event('firebase-ready'));
     </script>
 
@@ -147,6 +157,26 @@
     <!-- 토스트 -->
     <div id="toast-container" class="absolute top-4 left-0 right-0 flex justify-center z-[70] pointer-events-none"></div>
     
+    <!-- 설정 필요 안내 오버레이 -->
+    <div id="config-overlay" class="fixed inset-0 bg-black/90 z-[110] hidden flex flex-col items-center justify-center text-white p-6 text-center backdrop-blur-sm">
+        <div class="bg-gray-800 p-4 rounded-full mb-4">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#f04452" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+        </div>
+        <h2 class="text-2xl font-bold mb-3">Firebase 설정 필요</h2>
+        <p class="text-gray-300 mb-6 text-sm leading-relaxed">
+            현재 Firebase 연결 설정이 비어있습니다.<br>
+            코드를 열어 <code class="bg-gray-700 px-1 py-0.5 rounded text-yellow-400">firebaseConfig</code> 부분을<br>
+            새 프로젝트의 값으로 채워주세요.
+        </p>
+        <div class="w-full max-w-sm bg-gray-900 p-4 rounded-xl text-left text-xs font-mono text-gray-400 border border-gray-700 shadow-lg">
+            <span class="text-blue-400">const</span> firebaseConfig = {<br>
+            &nbsp;&nbsp;apiKey: <span class="text-green-400">"..."</span>,<br>
+            &nbsp;&nbsp;authDomain: <span class="text-green-400">"..."</span>,<br>
+            &nbsp;&nbsp;...<br>
+            };
+        </div>
+    </div>
+
     <!-- 로딩 -->
     <div id="loading-overlay" class="fixed inset-0 bg-white z-[100] flex flex-col items-center justify-center transition-opacity duration-500">
         <div class="loader mb-4"></div>
@@ -268,7 +298,7 @@
                 <div class="flex justify-between items-center mb-2">
                     <div class="flex items-center gap-1">
                         <div class="w-1.5 h-1.5 rounded-full bg-[#3182f6] animate-pulse" id="live-dot"></div>
-                        <span class="text-xs font-medium text-[#8b95a1]" id="chart-status-text">실시간</span>
+                        <span class="text-xs font-medium text-[#8b95a1]" id="chart-status-text">매 10분 주기 업데이트</span>
                     </div>
                     <!-- 차트 타입 토글 버튼 -->
                     <div class="flex gap-1">
@@ -502,8 +532,17 @@
                 btnChartLine: document.getElementById('btn-chart-line'),
                 btnChartCandle: document.getElementById('btn-chart-candle'),
                 // 줌 버튼들 (신규)
-                zoomBtns: document.querySelectorAll('.zoom-btn')
+                zoomBtns: document.querySelectorAll('.zoom-btn'),
+                // 설정 오버레이
+                configOverlay: document.getElementById('config-overlay')
             };
+
+            // Firebase 초기화 상태 확인
+            if (!window.isFirebaseInitialized) {
+                els.loadingOverlay.style.display = 'none';
+                els.configOverlay.classList.remove('hidden');
+                return; // 초기화되지 않았으면 이후 로직 실행 중단
+            }
 
             // ... (이전 코드 유틸리티 함수들) ...
             const fmt = n => n.toLocaleString();
@@ -511,7 +550,7 @@
             const showToast = (msg) => { const toast = document.createElement('div'); toast.className = 'toast-msg bg-[#333] text-white text-xs px-4 py-2 rounded-full shadow-lg mb-2 pointer-events-auto'; toast.innerText = msg; els.toastContainer.appendChild(toast); setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity 0.5s'; setTimeout(() => toast.remove(), 500); }, 2000); };
 
             let state = {
-                currentPrice: 983, basePrice: 983, basePriceLabel: "시작가보다", history: [983], tab: 'chart',
+                currentPrice: 742, basePrice: 742, basePriceLabel: "시작가보다", history: [742], tab: 'chart',
                 lastUpdated: 0, isConnected: false, adminTrend: null, adminTrendUntil: 0, manualPause: false, isAdmin: false,
                 chartOffset: 0, isDragging: false, lastX: 0, marketMood: 'neutral', nextMoodChange: 0,
                 walletCash: 0, walletStocks: 0, walletAvgPrice: 0,
@@ -537,10 +576,10 @@
                 window.onSnapshot(docRef, (snapshot) => {
                     if (snapshot.exists()) {
                         const data = snapshot.data();
-                        if (data.basePrice === 100) { window.updateDoc(docRef, { currentPrice: 983, basePrice: 983, history: [983], basePriceLabel: "어제보다" }); return; }
-                        state.currentPrice = data.currentPrice; state.history = data.history || [983]; state.lastUpdated = data.lastUpdated || 0;
+                        if (data.basePrice === 100) { window.updateDoc(docRef, { currentPrice: 742, basePrice: 742, history: [742], basePriceLabel: "어제보다" }); return; }
+                        state.currentPrice = data.currentPrice; state.history = data.history || [742]; state.lastUpdated = data.lastUpdated || 0;
                         state.adminTrend = data.adminTrend || null; state.adminTrendUntil = data.adminTrendUntil || 0; state.manualPause = data.manualPause || false;
-                        state.basePrice = data.basePrice || 983; state.basePriceLabel = data.basePriceLabel || "시작가보다";
+                        state.basePrice = data.basePrice || 742; state.basePriceLabel = data.basePriceLabel || "시작가보다";
                         state.marketMood = data.marketMood || 'neutral'; state.nextMoodChange = data.nextMoodChange || 0;
                         if (data.todayVolume) state.todayVolume = data.todayVolume; if (data.todayTradeAmount) state.todayTradeAmount = data.todayTradeAmount;
                         
@@ -548,14 +587,17 @@
                         if (state.chartOffset === 0) updateUI(); else drawChart(); updateWalletUI(); updateMoodUI(); checkPendingOrders(state.currentPrice);
                     } else initializeData(docRef);
                 });
+                
+                // 🔹 메인 루프: 1초마다 실행되지만, 주가는 10분(600,000ms)이 지났을 때만 업데이트함
                 setInterval(async () => {
                     if (!state.isConnected) return; const isMarketOpen = checkMarketStatus();
                     if (isMarketOpen) {
-                        if (Date.now() - state.lastUpdated > 1200) {
+                        // 1.2초(1200) -> 10분(600000)으로 변경
+                        if (Date.now() - state.lastUpdated > 600000) {
                             let nextBasePrice = state.basePrice; let nextBaseLabel = state.basePriceLabel; const now = new Date(); const lastDate = new Date(state.lastUpdated);
                             if (now.getDate() !== lastDate.getDate()) { await recordDailyHistory(lastDate, state.currentPrice, state.basePrice, state.todayVolume, state.todayTradeAmount); nextBasePrice = state.currentPrice; nextBaseLabel = "어제보다"; state.todayVolume = 0; state.todayTradeAmount = 0; }
                             let currentMood = state.marketMood; let nextChange = state.nextMoodChange;
-                            if (Date.now() > nextChange) { const candidates = ['bull', 'bear', 'neutral'].filter(m => m !== currentMood); currentMood = candidates[Math.floor(Math.random() * candidates.length)]; nextChange = Date.now() + (5 * 60 * 1000); }
+                            if (Date.now() > nextChange) { const candidates = ['bull', 'bear', 'neutral'].filter(m => m !== currentMood); currentMood = candidates[Math.floor(Math.random() * candidates.length)]; nextChange = Date.now() + (30 * 60 * 1000); } // 분위기도 30분 지속
                             let change = 0; const randomChance = Math.random(); const isRandomEvent = randomChance < 0.017;
                             if (isRandomEvent) { const factor = 0.10 + (Math.random() * 0.10); const isSurge = Math.random() > 0.5; change = Math.floor(state.currentPrice * factor); if (!isSurge) change = -change; } else { if (state.adminTrend && state.adminTrendUntil > Date.now()) { if (state.adminTrend === 'up') change = Math.floor(Math.random() * 6) + 2; else change = Math.floor(Math.random() * -6) - 2; } else { if (currentMood === 'bull') change = Math.floor(Math.random() * 10) - 3; else if (currentMood === 'bear') change = Math.floor(Math.random() * 10) - 6; else change = Math.floor(Math.random() * 11) - 5; if (change === 0) change = Math.random() > 0.5 ? 1 : -1; } }
                             let nextPrice = state.currentPrice + change; if(nextPrice < 1) nextPrice = 1; const simVol = Math.floor(Math.random() * 500) + 10; state.todayVolume += simVol; state.todayTradeAmount += (simVol * nextPrice); 
@@ -573,7 +615,7 @@
                 }, 1000);
                 setInterval(() => { if (state.isAdmin) updateUI(); }, 500);
             };
-            const initializeData = async (docRef) => { try { await window.setDoc(docRef, { currentPrice: 983, history: [983], lastUpdated: Date.now(), adminTrend: null, adminTrendUntil: 0, manualPause: false, basePrice: 983, basePriceLabel: "어제보다", marketMood: 'neutral', nextMoodChange: Date.now() + 300000, todayVolume: 0, todayTradeAmount: 0 }); } catch(e) {} };
+            const initializeData = async (docRef) => { try { await window.setDoc(docRef, { currentPrice: 742, history: [742], lastUpdated: Date.now(), adminTrend: null, adminTrendUntil: 0, manualPause: false, basePrice: 742, basePriceLabel: "어제보다", marketMood: 'neutral', nextMoodChange: Date.now() + 300000, todayVolume: 0, todayTradeAmount: 0 }); } catch(e) {} };
             // ... (Daily History, Wallet Sync, History Sync, Pending Orders, Admin Functions - Previous Logic Kept) ...
             const startDailyHistorySync = () => { const dailyRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'daily_history'); window.onSnapshot(dailyRef, (snapshot) => { if (snapshot.exists()) { state.dailyHistory = snapshot.data().history || []; renderDailyQuotes(); } else { window.setDoc(dailyRef, { history: [] }); } }); };
             const recordDailyHistory = async (dateObj, closePrice, basePrice, volume, tradeAmt) => { const dailyRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'daily_history'); const dateStr = `${dateObj.getFullYear()}.${String(dateObj.getMonth()+1).padStart(2,'0')}.${String(dateObj.getDate()).padStart(2,'0')}`; const diff = closePrice - basePrice; const diffRate = ((diff / basePrice) * 100).toFixed(2); const newItem = { date: dateStr, close: closePrice, diff: diff, rate: diffRate, vol: volume, amt: tradeAmt }; const docSnap = await window.getDoc(dailyRef); let currentHistory = []; if (docSnap.exists()) { currentHistory = docSnap.data().history || []; } if (currentHistory.length > 0 && currentHistory[0].date === dateStr) return; const newHistory = [newItem, ...currentHistory].slice(0, 365); await window.updateDoc(dailyRef, { history: newHistory }); };
@@ -687,7 +729,7 @@
             };
 
             const handleStart = (x) => { state.isDragging = true; state.lastX = x; els.chartContainer.classList.replace('cursor-grab', 'cursor-grabbing'); };
-            const handleMove = (x) => { if (!state.isDragging) return; const deltaX = x - state.lastX; state.lastX = x; state.chartOffset -= Math.round(deltaX / 5 * 2); if (state.chartOffset < 0) state.chartOffset = 0; const maxOffset = Math.max(0, state.history.length - 30); if (state.chartOffset > maxOffset) state.chartOffset = maxOffset; drawChart(); if (state.chartOffset > 0) { els.chartStatus.innerText = "과거 기록 조회 중"; els.liveDot.classList.remove('animate-pulse'); els.liveDot.classList.replace('bg-[#3182f6]', 'bg-gray-400'); } else { els.chartStatus.innerText = "실시간"; updateUI(); } };
+            const handleMove = (x) => { if (!state.isDragging) return; const deltaX = x - state.lastX; state.lastX = x; state.chartOffset -= Math.round(deltaX / 5 * 2); if (state.chartOffset < 0) state.chartOffset = 0; const maxOffset = Math.max(0, state.history.length - 30); if (state.chartOffset > maxOffset) state.chartOffset = maxOffset; drawChart(); if (state.chartOffset > 0) { els.chartStatus.innerText = "과거 기록 조회 중"; els.liveDot.classList.remove('animate-pulse'); els.liveDot.classList.replace('bg-[#3182f6]', 'bg-gray-400'); } else { els.chartStatus.innerText = "매 10분 주기 업데이트"; updateUI(); } };
             const handleEnd = () => { state.isDragging = false; els.chartContainer.classList.replace('cursor-grabbing', 'cursor-grab'); };
             els.chartContainer.addEventListener('mousedown', e => handleStart(e.clientX)); window.addEventListener('mousemove', e => handleMove(e.clientX)); window.addEventListener('mouseup', handleEnd);
             els.chartContainer.addEventListener('touchstart', e => handleStart(e.touches[0].clientX)); window.addEventListener('touchmove', e => handleMove(e.touches[0].clientX)); window.addEventListener('touchend', handleEnd);
@@ -832,7 +874,7 @@
                     if (state.manualPause) els.marketMsgBadge.innerText = "⏸ 장 일시정지됨"; else els.marketMsgBadge.innerText = "🌙 장 마감 (08:00 ~ 23:30)";
                 } else {
                     els.marketMsgContainer.classList.add('hidden');
-                    if (state.chartOffset === 0) { els.liveDot.classList.add('animate-pulse'); els.liveDot.classList.replace('bg-gray-400', 'bg-[#3182f6]'); els.chartStatus.innerText = "실시간"; }
+                    if (state.chartOffset === 0) { els.liveDot.classList.add('animate-pulse'); els.liveDot.classList.replace('bg-gray-400', 'bg-[#3182f6]'); els.chartStatus.innerText = "매 10분 주기 업데이트"; }
                 }
                 if (state.isAdmin && state.adminTrend && state.adminTrendUntil > Date.now()) {
                     const timeLeft = Math.ceil((state.adminTrendUntil - Date.now()) / 1000);
