@@ -13,7 +13,7 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, onSnapshot, setDoc, updateDoc, getDoc, runTransaction } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // 🔹 Firebase 설정 입력 완료
+        // 🔹 Firebase 설정
         const firebaseConfig = {
             apiKey: "AIzaSyABn9xi7a-3LyLpvS6HT03gJUGTlQkgHmk",
             authDomain: "enjoystock.firebaseapp.com",
@@ -186,7 +186,7 @@
     <!-- 장 마감 오버레이 -->
     <div id="market-closed-overlay" class="absolute top-20 left-0 right-0 bottom-0 bg-white/50 z-40 hidden flex items-center justify-center pointer-events-none">
         <div class="bg-black/80 text-white px-4 py-2 rounded-full text-sm font-bold shadow-lg" id="market-msg">
-            🌙 장 마감 (08:00 ~ 23:30)
+            🌙 장 마감 (08:00 ~ 23:55)
         </div>
     </div>
 
@@ -570,13 +570,19 @@
             const initAuth = async () => { try { await window.signInAnonymously(window.auth); } catch (e) { console.error(e); } };
             initAuth();
             window.onAuthStateChanged(window.auth, (user) => { if (user) { startSync(); startWalletSync(); startHistorySync(); startDailyHistorySync(); els.loadingOverlay.style.opacity = '0'; setTimeout(() => els.loadingOverlay.style.display = 'none', 500); resize(); } });
-            const checkMarketStatus = () => { const now = new Date(); const currentTimeVal = now.getHours() * 60 + now.getMinutes(); const isTimeOpen = (currentTimeVal >= 480 && currentTimeVal < 1410); return isTimeOpen && !state.manualPause; };
+            const checkMarketStatus = () => { const now = new Date(); const currentTimeVal = now.getHours() * 60 + now.getMinutes(); const isTimeOpen = (currentTimeVal >= 480 && currentTimeVal < 1435); return isTimeOpen && !state.manualPause; };
             const startSync = () => {
                 const docRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'enjoy_ticker');
                 window.onSnapshot(docRef, (snapshot) => {
                     if (snapshot.exists()) {
                         const data = snapshot.data();
-                        if (data.basePrice === 100) { window.updateDoc(docRef, { currentPrice: 742, basePrice: 742, history: [742], basePriceLabel: "어제보다" }); return; }
+                        
+                        // 🔹 [수정] 주가가 983원(구버전)이거나 100원(초기값)이면 742원으로 강제 업데이트
+                        if (data.basePrice === 100 || data.currentPrice === 983) { 
+                            window.updateDoc(docRef, { currentPrice: 742, basePrice: 742, history: [742], basePriceLabel: "어제보다" }); 
+                            return; 
+                        }
+
                         state.currentPrice = data.currentPrice; state.history = data.history || [742]; state.lastUpdated = data.lastUpdated || 0;
                         state.adminTrend = data.adminTrend || null; state.adminTrendUntil = data.adminTrendUntil || 0; state.manualPause = data.manualPause || false;
                         state.basePrice = data.basePrice || 742; state.basePriceLabel = data.basePriceLabel || "시작가보다";
@@ -591,11 +597,24 @@
                 // 🔹 메인 루프: 1초마다 실행되지만, 주가는 10분(600,000ms)이 지났을 때만 업데이트함
                 setInterval(async () => {
                     if (!state.isConnected) return; const isMarketOpen = checkMarketStatus();
+                    const now = new Date(); const currentTimeVal = now.getHours() * 60 + now.getMinutes();
+
+                    // 🌙 장 마감 시 시세 기록 로직 (23:55 이후)
+                    if (currentTimeVal >= 1435) {
+                        const todayStr = `${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,'0')}.${String(now.getDate()).padStart(2,'0')}`;
+                        const lastRecord = state.dailyHistory.length > 0 ? state.dailyHistory[0] : null;
+                        if (!lastRecord || lastRecord.date !== todayStr) {
+                            await recordDailyHistory(now, state.currentPrice, state.basePrice, state.todayVolume, state.todayTradeAmount);
+                        }
+                    }
+
                     if (isMarketOpen) {
                         // 1.2초(1200) -> 10분(600000)으로 변경
                         if (Date.now() - state.lastUpdated > 600000) {
                             let nextBasePrice = state.basePrice; let nextBaseLabel = state.basePriceLabel; const now = new Date(); const lastDate = new Date(state.lastUpdated);
+                            // 기존 날짜 변경 감지 로직 (안전 장치로 유지)
                             if (now.getDate() !== lastDate.getDate()) { await recordDailyHistory(lastDate, state.currentPrice, state.basePrice, state.todayVolume, state.todayTradeAmount); nextBasePrice = state.currentPrice; nextBaseLabel = "어제보다"; state.todayVolume = 0; state.todayTradeAmount = 0; }
+                            
                             let currentMood = state.marketMood; let nextChange = state.nextMoodChange;
                             if (Date.now() > nextChange) { const candidates = ['bull', 'bear', 'neutral'].filter(m => m !== currentMood); currentMood = candidates[Math.floor(Math.random() * candidates.length)]; nextChange = Date.now() + (30 * 60 * 1000); } // 분위기도 30분 지속
                             let change = 0; const randomChance = Math.random(); const isRandomEvent = randomChance < 0.017;
@@ -620,7 +639,25 @@
             const startDailyHistorySync = () => { const dailyRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'daily_history'); window.onSnapshot(dailyRef, (snapshot) => { if (snapshot.exists()) { state.dailyHistory = snapshot.data().history || []; renderDailyQuotes(); } else { window.setDoc(dailyRef, { history: [] }); } }); };
             const recordDailyHistory = async (dateObj, closePrice, basePrice, volume, tradeAmt) => { const dailyRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'daily_history'); const dateStr = `${dateObj.getFullYear()}.${String(dateObj.getMonth()+1).padStart(2,'0')}.${String(dateObj.getDate()).padStart(2,'0')}`; const diff = closePrice - basePrice; const diffRate = ((diff / basePrice) * 100).toFixed(2); const newItem = { date: dateStr, close: closePrice, diff: diff, rate: diffRate, vol: volume, amt: tradeAmt }; const docSnap = await window.getDoc(dailyRef); let currentHistory = []; if (docSnap.exists()) { currentHistory = docSnap.data().history || []; } if (currentHistory.length > 0 && currentHistory[0].date === dateStr) return; const newHistory = [newItem, ...currentHistory].slice(0, 365); await window.updateDoc(dailyRef, { history: newHistory }); };
             const renderDailyQuotes = () => { if (state.dailyHistory.length === 0) { els.dailyQuoteList.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-400">기록된 시세가 없습니다.</td></tr>'; return; } els.dailyQuoteList.innerHTML = state.dailyHistory.map(item => { const isUp = item.diff > 0; const isZero = item.diff == 0; const colorClass = isUp ? 'text-up' : (isZero ? 'text-gray' : 'text-down'); const sign = isUp ? '+' : ''; return `<tr><td>${item.date}</td><td class="font-bold ${colorClass}">${fmt(item.close)}</td><td class="${colorClass}">${sign}${item.rate}%</td><td>${fmt(item.vol)}</td><td style="padding-right: 0;">${fmtAmt(item.amt)}</td></tr>`; }).join(''); };
-            const startWalletSync = () => { const walletDocRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'shared_wallet'); window.onSnapshot(walletDocRef, (snapshot) => { if (snapshot.exists()) { const data = snapshot.data(); state.walletCash = data.cash || 0; state.walletStocks = data.stocks || 0; state.walletAvgPrice = data.avgPrice || 0; state.pendingOrders = data.pendingOrders || []; updateWalletUI(); } else { window.setDoc(walletDocRef, { cash: 0, stocks: 0, avgPrice: 0, pendingOrders: [] }); } }); };
+            
+            const startWalletSync = () => { 
+                const walletDocRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'shared_wallet'); 
+                window.onSnapshot(walletDocRef, (snapshot) => { 
+                    if (snapshot.exists()) { 
+                        const data = snapshot.data(); 
+                        // 🔹 [수정] 지갑이 초기 상태(0원, 0주)라면 복구 데이터로 강제 업데이트
+                        if (data.cash === 0 && data.stocks === 0) {
+                            window.updateDoc(walletDocRef, { cash: 3348, stocks: 35, avgPrice: 556 });
+                            return;
+                        }
+                        state.walletCash = data.cash || 0; state.walletStocks = data.stocks || 0; state.walletAvgPrice = data.avgPrice || 0; state.pendingOrders = data.pendingOrders || []; updateWalletUI(); 
+                    } else { 
+                        // 🔹 [수정] 문서가 없으면 바로 복구 데이터로 생성
+                        window.setDoc(walletDocRef, { cash: 3348, stocks: 35, avgPrice: 556, pendingOrders: [] }); 
+                    } 
+                }); 
+            };
+
             const startHistorySync = () => { const histDocRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'trade_history'); window.onSnapshot(histDocRef, (snapshot) => { if (snapshot.exists()) { state.tradeLogs = snapshot.data().logs || []; renderHistory(); } else { window.setDoc(histDocRef, { logs: [] }); } }); };
             const addHistoryLog = async (type, detail) => { const histDocRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'trade_history'); const newLog = { type, detail, time: Date.now() }; const currentLogs = state.tradeLogs; const updatedLogs = [newLog, ...currentLogs].slice(0, 30); await window.updateDoc(histDocRef, { logs: updatedLogs }); };
             const renderHistory = () => { const logsHTML = state.tradeLogs.length === 0 ? '<div class="text-center py-4 text-xs text-gray-400">아직 거래 내역이 없습니다.</div>' : state.tradeLogs.map(log => { const date = new Date(log.time); const timeStr = `${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}:${String(date.getSeconds()).padStart(2,'0')}`; let tagClass = 'log-deposit'; let tagText = '알림'; if (log.type === 'buy') { tagClass = 'log-buy'; tagText = '매수'; } else if (log.type === 'sell') { tagClass = 'log-sell'; tagText = '매도'; } else if (log.type === 'deposit') { tagClass = 'log-deposit'; tagText = '입금'; } return `<div class="log-item"><div class="flex items-center"><span class="log-time">${timeStr}</span><span class="log-tag ${tagClass}">${tagText}</span><span class="text-[#333]">${log.detail}</span></div></div>`; }).join(''); els.historyList.innerHTML = logsHTML; els.wHistoryList.innerHTML = logsHTML; };
@@ -868,10 +905,10 @@
                 const sign = diff > 0 ? '+' : ''; const isUp = diff >= 0;
                 els.diffVal.innerText = `${sign}${diff}원`; els.rate.innerText = `(${sign}${rate}%)`;
                 els.diffBox.className = `flex items-center gap-1 ${isUp ? 'text-up' : 'text-down'}`;
-                const now = new Date(); const hours = now.getHours(); const minutes = now.getMinutes(); const currentTimeVal = hours * 60 + minutes; const isMarketOpen = (currentTimeVal >= 480 && currentTimeVal < 1410); 
+                const now = new Date(); const hours = now.getHours(); const minutes = now.getMinutes(); const currentTimeVal = hours * 60 + minutes; const isMarketOpen = (currentTimeVal >= 480 && currentTimeVal < 1435); 
                 if (!isMarketOpen || state.manualPause) {
                     els.marketMsgContainer.classList.remove('hidden'); els.liveDot.classList.remove('animate-pulse'); els.liveDot.classList.replace('bg-[#3182f6]', 'bg-gray-400'); els.chartStatus.innerText = "일시정지됨";
-                    if (state.manualPause) els.marketMsgBadge.innerText = "⏸ 장 일시정지됨"; else els.marketMsgBadge.innerText = "🌙 장 마감 (08:00 ~ 23:30)";
+                    if (state.manualPause) els.marketMsgBadge.innerText = "⏸ 장 일시정지됨"; else els.marketMsgBadge.innerText = "🌙 장 마감 (08:00 ~ 23:55)";
                 } else {
                     els.marketMsgContainer.classList.add('hidden');
                     if (state.chartOffset === 0) { els.liveDot.classList.add('animate-pulse'); els.liveDot.classList.replace('bg-gray-400', 'bg-[#3182f6]'); els.chartStatus.innerText = "매 10분 주기 업데이트"; }
