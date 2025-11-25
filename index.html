@@ -186,8 +186,12 @@
                 <span id="market-mood-badge" class="text-[10px] px-2 py-0.5 rounded-full font-bold ml-1 hidden cursor-default tracking-tight"></span>
             </h1>
             <div class="flex items-center gap-2">
-                <button id="btn-home" class="w-10 h-10 rounded-full bg-gray-50 hover:bg-gray-100 flex items-center justify-center transition-colors border border-gray-100 flex-shrink-0 text-gray-500 hover:text-black">🏠</button>
-                <button id="btn-profile" class="w-10 h-10 rounded-full bg-gray-50 hover:bg-gray-100 flex items-center justify-center transition-colors border border-gray-100 flex-shrink-0">👤</button>
+                <button id="btn-home" class="w-10 h-10 rounded-full bg-gray-50 hover:bg-gray-100 flex items-center justify-center transition-colors border border-gray-100 flex-shrink-0 text-gray-500 hover:text-black">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+                </button>
+                <button id="btn-profile" class="w-10 h-10 rounded-full bg-gray-50 hover:bg-gray-100 flex items-center justify-center transition-colors border border-gray-100 flex-shrink-0">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#8b95a1" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                </button>
             </div>
         </div>
         <div class="flex items-end gap-2 mb-1">
@@ -228,13 +232,6 @@
                         <button id="btn-chart-line" class="chart-toggle-btn active">선형</button>
                         <button id="btn-chart-candle" class="chart-toggle-btn">캔들</button>
                     </div>
-                </div>
-                <!-- 줌 레벨 -->
-                <div class="flex justify-end gap-1.5">
-                    <button class="zoom-btn" data-zoom="0.3">30%</button>
-                    <button class="zoom-btn" data-zoom="0.5">50%</button>
-                    <button class="zoom-btn" data-zoom="0.8">80%</button>
-                    <button class="zoom-btn active" data-zoom="1.0">100%</button>
                 </div>
             </div>
             
@@ -354,8 +351,7 @@
                 btnQtyUp: document.getElementById('btn-qty-up'), btnQtyDown: document.getElementById('btn-qty-down'),
                 btnTradeConfirm: document.getElementById('btn-trade-confirm'), btnTradeClose: document.getElementById('btn-trade-close'),
                 tradeTotalAmount: document.getElementById('trade-total-amount'),
-                btnChartLine: document.getElementById('btn-chart-line'), btnChartCandle: document.getElementById('btn-chart-candle'), configOverlay: document.getElementById('config-overlay'),
-                zoomBtns: document.querySelectorAll('.zoom-btn')
+                btnChartLine: document.getElementById('btn-chart-line'), btnChartCandle: document.getElementById('btn-chart-candle'), configOverlay: document.getElementById('config-overlay')
             };
 
             if (!window.isFirebaseInitialized) { els.loadingOverlay.style.display = 'none'; els.configOverlay.classList.remove('hidden'); return; }
@@ -746,7 +742,6 @@
                 else { els.viewInfo.classList.remove('hidden'); els.viewInfo.classList.add('flex'); }
             };
             els.tabChart.onclick = () => switchTab('chart'); els.tabOrder.onclick = () => switchTab('order'); els.tabDaily.onclick = () => switchTab('daily'); els.tabWallet.onclick = () => switchTab('wallet'); els.tabInfo.onclick = () => switchTab('info');
-            els.zoomBtns.forEach(btn => btn.onclick = () => { state.zoomScale = parseFloat(btn.dataset.zoom); els.zoomBtns.forEach(b => b.classList.toggle('active', b === btn)); drawChart(); });
         });
     </script>
 </body>
