@@ -89,6 +89,30 @@
         .divider-section { border-top: 8px solid #f2f4f6; margin-top: 20px; padding-top: 20px; }
         .trade-bar { box-shadow: 0 -4px 20px rgba(0,0,0,0.05); }
 
+        /* 주문 내역 스타일 */
+        .log-item { font-size: 12px; padding: 8px 0; border-bottom: 1px solid #f2f4f6; display: flex; justify-content: space-between; align-items: center; }
+        .log-item:last-child { border-bottom: none; }
+        .log-time { color: #8b95a1; font-size: 10px; margin-right: 8px; }
+        .log-tag { padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 10px; margin-right: 6px; }
+        .log-buy { background-color: #fff4f4; color: #f04452; }
+        .log-sell { background-color: #f4f9ff; color: #3182f6; }
+        .log-deposit { background-color: #f2f4f6; color: #333; }
+        .log-wait { background-color: #f2f4f6; color: #6b7684; }
+
+        /* Stepper Input Style */
+        .stepper-btn { width: 52px; height: 52px; border-radius: 12px; background: #f2f4f6; color: #333; font-weight: bold; font-size: 24px; display: flex; align-items: center; justify-content: center; transition: background-color 0.2s, transform 0.1s; }
+        .stepper-btn:active { background: #d1d6db; transform: scale(0.95); }
+        
+        /* 일별 시세 테이블 스타일 (복구됨) */
+        .daily-table { width: 100%; font-size: 13px; border-collapse: collapse; }
+        .daily-table th { padding: 10px 0; color: #8b95a1; font-weight: 500; border-bottom: 1px solid #f2f4f6; text-align: right; }
+        .daily-table th:first-child { text-align: left; }
+        .daily-table td { padding: 12px 0; border-bottom: 1px solid #f2f4f6; text-align: right; color: #333; }
+        .daily-table td:first-child { text-align: left; color: #8b95a1; font-size: 12px; }
+        .daily-table .text-up { color: #f04452; }
+        .daily-table .text-down { color: #3182f6; }
+        .daily-table .text-gray { color: #333; }
+
         /* 차트 토글 */
         .chart-toggle-btn { 
             padding: 4px 10px; 
@@ -102,6 +126,32 @@
         .chart-toggle-btn.active { 
             background-color: #333; 
             color: white; 
+        }
+
+        /* 차트 펄스 애니메이션 (신규 추가) */
+        .pulse-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            position: absolute;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 10;
+        }
+        .pulse-ring {
+            content: '';
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            opacity: 0;
+            animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+        }
+        @keyframes pulse-ring {
+            0% { transform: scale(0.5); opacity: 0.8; }
+            100% { transform: scale(3); opacity: 0; }
         }
     </style>
 </head>
@@ -238,6 +288,12 @@
             <!-- 차트 영역 -->
             <div class="w-full h-[280px] relative mt-2" id="chart-container">
                 <canvas id="chart-canvas" class="w-full h-full block"></canvas>
+                
+                <!-- 펄스 애니메이션 점 -->
+                <div id="chart-pulse-dot" class="pulse-dot hidden" style="background-color: #3182f6;">
+                    <div class="pulse-ring" style="background-color: #3182f6;"></div>
+                </div>
+
                 <div id="label-high" class="absolute text-[11px] text-[#3182f6] font-medium opacity-0">최고 <span id="val-high"></span></div>
                 <div id="label-low" class="absolute text-[11px] text-[#3182f6] font-medium opacity-0">최저 <span id="val-low"></span></div>
                 <!-- 시간 축 라벨 -->
@@ -351,7 +407,10 @@
                 btnQtyUp: document.getElementById('btn-qty-up'), btnQtyDown: document.getElementById('btn-qty-down'),
                 btnTradeConfirm: document.getElementById('btn-trade-confirm'), btnTradeClose: document.getElementById('btn-trade-close'),
                 tradeTotalAmount: document.getElementById('trade-total-amount'),
-                btnChartLine: document.getElementById('btn-chart-line'), btnChartCandle: document.getElementById('btn-chart-candle'), configOverlay: document.getElementById('config-overlay')
+                btnChartLine: document.getElementById('btn-chart-line'), btnChartCandle: document.getElementById('btn-chart-candle'), configOverlay: document.getElementById('config-overlay'),
+                zoomBtns: document.querySelectorAll('.zoom-btn'),
+                // Pulse Dot
+                chartPulseDot: document.getElementById('chart-pulse-dot')
             };
 
             if (!window.isFirebaseInitialized) { els.loadingOverlay.style.display = 'none'; els.configOverlay.classList.remove('hidden'); return; }
@@ -473,7 +532,6 @@
                 let lastTime = state.lastUpdated;
                 let currentPrice = state.currentPrice;
                 
-                // 1. 날짜가 지났거나 초기 상태면 08:00 부터 새로 시작
                 const lastDate = new Date(lastTime);
                 if (lastDate.getDate() !== now.getDate() || lastTime < marketStart.getTime()) {
                     currentHistory = [state.basePrice];
@@ -483,19 +541,15 @@
                     state.todayTradeAmount = 0;
                 }
 
-                // 2. 현재 시간까지 있어야 할 틱 수 계산 (강제)
                 const timeCap = Math.min(now.getTime(), marketEnd.getTime());
-                // 장 시작 전이면 계산 안함
                 if (now.getTime() < marketStart.getTime()) return;
 
                 const diffMs = timeCap - marketStart.getTime();
-                // 08:00가 0번 인덱스. 10분 지났으면 1번 인덱스 추가.
                 const expectedCount = Math.floor(diffMs / 600000) + 1; 
                 
                 const currentCount = currentHistory.length;
                 const missingTicks = expectedCount - currentCount;
 
-                // 3. 부족한 만큼 채워넣기
                 if (missingTicks > 0) {
                     let simVol = state.todayVolume;
                     let simAmt = state.todayTradeAmount;
@@ -511,10 +565,8 @@
                         simAmt += (v * currentPrice);
                     }
 
-                    // 4. 로컬 상태 즉시 반영 (차트가 바로 그려짐)
                     state.history = currentHistory;
                     state.currentPrice = currentPrice;
-                    // 마지막 업데이트 시간을 '현재 시간과 가장 가까운 10분 단위'로 맞춤
                     state.lastUpdated = marketStart.getTime() + ((currentHistory.length - 1) * 600000);
                     state.todayVolume = simVol;
                     state.todayTradeAmount = simAmt;
@@ -522,7 +574,6 @@
                     updateUI(); 
                     drawChart();
 
-                    // 5. 서버에 저장
                     try {
                         await window.updateDoc(docRef, {
                             currentPrice: state.currentPrice,
@@ -617,7 +668,7 @@
                 const fullHistory = state.history; 
                 if (fullHistory.length === 0) return;
 
-                // Y축 스케일 계산 (기존과 동일)
+                // Y축 스케일 계산
                 let minVal = Math.min(...fullHistory); let maxVal = Math.max(...fullHistory);
                 minVal = Math.min(minVal, state.basePrice); maxVal = Math.max(maxVal, state.basePrice);
                 if (maxVal === minVal) { maxVal += 10; minVal -= 10; } else { const padding = (maxVal - minVal) * 0.1; maxVal += padding; minVal -= padding; }
@@ -629,18 +680,27 @@
                 // 전체 틱 수 = TOTAL_TICKS (94)
                 const xStep = (w - 40) / (TOTAL_TICKS - 1); // 오른쪽 여백 40px
 
+                // 마지막 포인트 좌표 (Pulse 효과용)
+                let lastPoint = { x: 0, y: 0 };
+
                 if (state.chartType === 'line') {
                     const lastVal = fullHistory[fullHistory.length - 1]; 
                     const isUp = lastVal >= state.basePrice; 
                     const color = isUp ? '#f04452' : '#3182f6';
                     els.labelHigh.style.color = color; els.labelLow.style.color = color; els.liveDot.style.backgroundColor = color;
+                    els.chartPulseDot.style.backgroundColor = color; // 펄스 색상 변경
+                    els.chartPulseDot.querySelector('.pulse-ring').style.backgroundColor = color;
 
                     ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
                     
                     fullHistory.forEach((p, i) => { 
                         const x = i * xStep; 
                         const y = h - ((p - minVal) / range) * h; 
-                        if(i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); 
+                        if(i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                        
+                        if (i === fullHistory.length - 1) {
+                            lastPoint = { x, y };
+                        }
                     });
                     ctx.stroke();
                     
@@ -653,12 +713,21 @@
                         grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
                         ctx.fillStyle = grad; ctx.fill();
 
-                        // 현재가 점 찍기
+                        // 현재가 점 찍기 (Canvas 내부)
                         const lastY = h - ((lastVal - minVal) / range) * h;
                         ctx.beginPath(); ctx.fillStyle = color; ctx.arc(lastX, lastY, 4, 0, Math.PI * 2); ctx.fill();
                     }
 
-                    // 최고/최저 라벨 (기존 로직 유지)
+                    // 🔹 [Pulse 효과 위치 이동]
+                    if (checkMarketStatus()) {
+                        els.chartPulseDot.classList.remove('hidden');
+                        els.chartPulseDot.style.left = `${lastPoint.x}px`;
+                        els.chartPulseDot.style.top = `${lastPoint.y}px`;
+                    } else {
+                        els.chartPulseDot.classList.add('hidden');
+                    }
+
+                    // 최고/최저 라벨
                     const maxValData = Math.max(...fullHistory); const minValData = Math.min(...fullHistory);
                     els.valHigh.innerText = Math.round(maxValData); els.valLow.innerText = Math.round(minValData);
                     const maxIdx = fullHistory.lastIndexOf(maxValData); const minIdx = fullHistory.lastIndexOf(minValData);
@@ -671,6 +740,7 @@
 
                 } else {
                     const candleWidth = xStep * 0.6;
+                    els.chartPulseDot.classList.add('hidden'); // 캔들 차트에서는 펄스 숨김
                     
                     fullHistory.forEach((p, i) => {
                         const prev = i > 0 ? fullHistory[i-1] : state.basePrice;
@@ -702,12 +772,10 @@
                 const sign = diff > 0 ? '+' : ''; const isUp = diff >= 0;
                 els.diffVal.innerText = `${sign}${diff}원`; els.rate.innerText = `(${sign}${rate}%)`;
                 els.diffBox.className = `flex items-center gap-1 ${isUp ? 'text-up' : 'text-down'}`;
-                const now = new Date(); const hours = now.getHours(); const minutes = now.getMinutes(); const currentTimeVal = hours * 60 + minutes; 
-                const startVal = MARKET_START_HOUR * 60 + MARKET_START_MIN;
-                const endVal = MARKET_END_HOUR * 60 + MARKET_END_MIN;
-                const isMarketOpen = (currentTimeVal >= startVal && currentTimeVal < endVal);
                 
-                if (!isMarketOpen || state.manualPause) {
+                const isMarketOpen = checkMarketStatus();
+                
+                if (!isMarketOpen) {
                     els.marketMsgContainer.classList.remove('hidden'); els.liveDot.classList.remove('animate-pulse'); els.liveDot.classList.replace('bg-[#3182f6]', 'bg-gray-400'); els.chartStatus.innerText = "일시정지됨";
                     if (state.manualPause) els.marketMsgBadge.innerText = "⏸ 장 일시정지됨"; else els.marketMsgBadge.innerText = "🌙 장 마감 (08:00 ~ 23:30)";
                 } else {
@@ -742,6 +810,7 @@
                 else { els.viewInfo.classList.remove('hidden'); els.viewInfo.classList.add('flex'); }
             };
             els.tabChart.onclick = () => switchTab('chart'); els.tabOrder.onclick = () => switchTab('order'); els.tabDaily.onclick = () => switchTab('daily'); els.tabWallet.onclick = () => switchTab('wallet'); els.tabInfo.onclick = () => switchTab('info');
+            els.zoomBtns.forEach(btn => btn.onclick = () => { state.zoomScale = parseFloat(btn.dataset.zoom); els.zoomBtns.forEach(b => b.classList.toggle('active', b === btn)); drawChart(); });
         });
     </script>
 </body>
