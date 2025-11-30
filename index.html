@@ -412,6 +412,7 @@
             const fmtAmt = n => { if(n >= 100000000) return (n/100000000).toFixed(1) + "억"; if(n >= 10000) return (n/10000).toFixed(0) + "만"; return fmt(n); };
             const showToast = (msg) => { const toast = document.createElement('div'); toast.className = 'toast-msg bg-[#333] text-white text-xs px-4 py-2 rounded-full shadow-lg mb-2 pointer-events-auto'; toast.innerText = msg; els.toastContainer.appendChild(toast); setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity 0.5s'; setTimeout(() => toast.remove(), 500); }, 2000); };
 
+            // 🔹 초기값 설정
             let state = {
                 currentPrice: 1103, basePrice: 1103, basePriceLabel: "시작가보다", history: [1103], tab: 'chart',
                 lastUpdated: 0, isConnected: false, adminTrend: null, adminTrendUntil: 0, manualPause: false, isAdmin: false,
@@ -474,19 +475,65 @@
                     if (snapshot.exists()) {
                         const data = snapshot.data();
                         
-                        state.currentPrice = data.currentPrice; 
-                        state.history = data.history || []; 
-                        state.lastUpdated = data.lastUpdated || 0;
-                        state.adminTrend = data.adminTrend || null; state.adminTrendUntil = data.adminTrendUntil || 0; state.manualPause = data.manualPause || false;
-                        state.basePrice = data.basePrice || 1103; 
-                        state.basePriceLabel = data.basePriceLabel || "시작가보다";
-                        state.marketMood = data.marketMood || 'neutral'; state.nextMoodChange = data.nextMoodChange || 0;
-                        if (data.todayVolume) state.todayVolume = data.todayVolume; if (data.todayTradeAmount) state.todayTradeAmount = data.todayTradeAmount;
+                        // 🔹 [08:00 리셋 및 종가 승계 로직]
+                        const now = new Date();
+                        const marketStart = new Date();
+                        marketStart.setHours(MARKET_START_HOUR, MARKET_START_MIN, 0, 0);
+                        const lastDate = new Date(data.lastUpdated || 0);
+
+                        let needReset = false;
                         
-                        // 🔹 [핵심 수정] 날짜 변경 및 시뮬레이션 통합
+                        // 1. 현재 시간이 08:00 이후인데, 마지막 업데이트가 08:00 이전인 경우 리셋 (날짜가 바뀌었어도 08:00 전이면 유지)
+                        if (now >= marketStart && lastDate.getTime() < marketStart.getTime()) {
+                             needReset = true;
+                        }
+
+                        if (needReset) {
+                            // 어제 종가(DB의 currentPrice)를 오늘 시가로 설정
+                            const prevClose = data.currentPrice;
+                            state.basePrice = prevClose;
+                            state.currentPrice = prevClose;
+                            state.history = [prevClose];
+                            state.lastUpdated = marketStart.getTime(); // 오늘 08:00로
+                            state.todayVolume = 0;
+                            state.todayTradeAmount = 0;
+                            
+                            // 서버에 리셋 정보 저장
+                            try {
+                                await window.updateDoc(docRef, {
+                                    basePrice: prevClose,
+                                    basePriceLabel: "어제보다",
+                                    history: [prevClose],
+                                    lastUpdated: marketStart.getTime(),
+                                    todayVolume: 0,
+                                    todayTradeAmount: 0
+                                });
+                            } catch(e) {}
+                        } else {
+                            // 평소엔 DB 데이터 로드
+                            state.currentPrice = data.currentPrice;
+                            state.history = data.history || [];
+                            state.lastUpdated = data.lastUpdated;
+                            state.basePrice = data.basePrice;
+                            state.todayVolume = data.todayVolume;
+                            state.todayTradeAmount = data.todayTradeAmount;
+                        }
+
+                        // 🔹 [백필] 빈 공간 채우기
                         await simulateMissingData(docRef);
 
-                        state.isConnected = true; els.syncStatus.classList.remove('bg-gray-300', 'bg-red-500'); els.syncStatus.classList.add('bg-green-500');
+                        // 공통 데이터 로드
+                        state.adminTrend = data.adminTrend || null; 
+                        state.adminTrendUntil = data.adminTrendUntil || 0; 
+                        state.manualPause = data.manualPause || false;
+                        state.basePriceLabel = data.basePriceLabel || "시작가보다";
+                        state.marketMood = data.marketMood || 'neutral'; 
+                        state.nextMoodChange = data.nextMoodChange || 0;
+
+                        state.isConnected = true; 
+                        els.syncStatus.classList.remove('bg-gray-300', 'bg-red-500'); 
+                        els.syncStatus.classList.add('bg-green-500');
+                        
                         updateUI(); drawChart(); updateWalletUI(); updateMoodUI(); checkPendingOrders(state.currentPrice);
                     } else initializeData(docRef);
                 });
@@ -514,7 +561,7 @@
                 setInterval(() => { if (state.isAdmin) updateUI(); }, 500);
             };
 
-            // 🔹 [시뮬레이션 로직 수정] 날짜 변경시 어제 종가 승계
+            // 🔹 [시뮬레이션] 08:00 이후부터 현재까지 빈 공간 채우기
             const simulateMissingData = async (docRef) => {
                 const now = new Date();
                 const marketStart = new Date(now);
@@ -522,50 +569,18 @@
                 const marketEnd = new Date(now);
                 marketEnd.setHours(MARKET_END_HOUR, MARKET_END_MIN, 0, 0);
 
-                let currentHistory = [...state.history];
-                let lastTime = state.lastUpdated;
-                let currentPrice = state.currentPrice;
-                
-                const lastDateObj = new Date(lastTime);
-                
-                // 1. 날짜가 다르거나 데이터가 없으면 초기화
-                if (lastDateObj.getDate() !== now.getDate() || state.history.length === 0) {
-                    // 🔹 [중요] 오늘의 기준가는 어제 종가(현재 DB의 currentPrice)
-                    // 단, 첫 실행 등 데이터가 없으면 1103(현재 기본값) 사용
-                    const newBase = currentPrice > 0 ? currentPrice : 1103;
-                    
-                    currentHistory = [newBase]; 
-                    currentPrice = newBase; 
-                    lastTime = marketStart.getTime(); 
-                    
-                    state.basePrice = newBase;
-                    state.basePriceLabel = "어제보다";
-                    state.todayVolume = 0;
-                    state.todayTradeAmount = 0;
-                    
-                    // 초기화된 상태 저장
-                    try {
-                        await window.updateDoc(docRef, {
-                            basePrice: newBase,
-                            basePriceLabel: "어제보다",
-                            history: currentHistory,
-                            lastUpdated: lastTime, 
-                            todayVolume: 0,
-                            todayTradeAmount: 0,
-                            currentPrice: newBase
-                        });
-                    } catch(e) {}
-                }
-
-                // 2. 현재 시간까지 빈 틱 계산해서 채워넣기
-                const timeCap = Math.min(now.getTime(), marketEnd.getTime());
+                // 장 시작 전(00:00 ~ 07:59)이면 백필 안함 (어제 차트 유지)
                 if (now.getTime() < marketStart.getTime()) return;
 
+                let currentHistory = [...state.history];
+                let currentPrice = state.currentPrice;
+
+                // 현재 시간(또는 마감 시간)까지 10분 단위 틱 수 계산
+                const timeCap = Math.min(now.getTime(), marketEnd.getTime());
                 const diffMs = timeCap - marketStart.getTime();
-                const expectedCount = Math.floor(diffMs / 600000) + 1; 
+                const expectedCount = Math.floor(diffMs / 600000) + 1; // 08:00 포함
                 
-                const currentCount = currentHistory.length;
-                const missingTicks = expectedCount - currentCount;
+                const missingTicks = expectedCount - currentHistory.length;
 
                 if (missingTicks > 0) {
                     let simVol = state.todayVolume;
@@ -582,6 +597,7 @@
                         simAmt += (v * currentPrice);
                     }
 
+                    // 상태 갱신
                     state.history = currentHistory;
                     state.currentPrice = currentPrice;
                     state.lastUpdated = marketStart.getTime() + ((currentHistory.length - 1) * 600000);
@@ -591,17 +607,16 @@
                     updateUI(); 
                     drawChart();
 
+                    // 서버 저장
                     try {
                         await window.updateDoc(docRef, {
                             currentPrice: state.currentPrice,
                             history: state.history,
                             lastUpdated: state.lastUpdated,
                             todayVolume: state.todayVolume,
-                            todayTradeAmount: state.todayTradeAmount,
-                            // basePrice도 확실히 업데이트
-                            basePrice: state.basePrice
+                            todayTradeAmount: state.todayTradeAmount
                         });
-                    } catch(e) {}
+                    } catch(e) { console.log("Sim update skip"); }
                 }
             };
 
