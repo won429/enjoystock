@@ -103,11 +103,11 @@
         .stepper-btn { width: 52px; height: 52px; border-radius: 12px; background: #f2f4f6; color: #333; font-weight: bold; font-size: 24px; display: flex; align-items: center; justify-content: center; transition: background-color 0.2s, transform 0.1s; }
         .stepper-btn:active { background: #d1d6db; transform: scale(0.95); }
         
-        /* 일별 시세 테이블 스타일 (완전 원상 복구) */
-        .daily-table { width: 100%; font-size: 13px; border-collapse: collapse; }
-        .daily-table th { padding: 10px 0; color: #8b95a1; font-weight: 500; border-bottom: 1px solid #f2f4f6; text-align: right; }
+        /* 일별 시세 테이블 스타일 */
+        .daily-table { width: 100%; font-size: 13px; border-collapse: collapse; table-layout: fixed; }
+        .daily-table th { padding: 12px 0; color: #8b95a1; font-weight: 500; border-bottom: 1px solid #f2f4f6; text-align: right; white-space: nowrap; }
         .daily-table th:first-child { text-align: left; }
-        .daily-table td { padding: 12px 0; border-bottom: 1px solid #f2f4f6; text-align: right; color: #333; }
+        .daily-table td { padding: 14px 0; border-bottom: 1px solid #f2f4f6; text-align: right; color: #333; white-space: nowrap; }
         .daily-table td:first-child { text-align: left; color: #8b95a1; font-size: 12px; }
         .daily-table .text-up { color: #f04452; }
         .daily-table .text-down { color: #3182f6; }
@@ -412,9 +412,9 @@
             const fmtAmt = n => { if(n >= 100000000) return (n/100000000).toFixed(1) + "억"; if(n >= 10000) return (n/10000).toFixed(0) + "만"; return fmt(n); };
             const showToast = (msg) => { const toast = document.createElement('div'); toast.className = 'toast-msg bg-[#333] text-white text-xs px-4 py-2 rounded-full shadow-lg mb-2 pointer-events-auto'; toast.innerText = msg; els.toastContainer.appendChild(toast); setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity 0.5s'; setTimeout(() => toast.remove(), 500); }, 2000); };
 
-            // 🔹 초기값 (1171원 승계)
+            // 🔹 초기값 (1242원 승계)
             let state = {
-                currentPrice: 1171, basePrice: 1171, basePriceLabel: "어제보다", history: [1171], tab: 'chart',
+                currentPrice: 1242, basePrice: 1242, basePriceLabel: "시작가보다", history: [1242], tab: 'chart',
                 lastUpdated: 0, isConnected: false, adminTrend: null, adminTrendUntil: 0, manualPause: false, isAdmin: false,
                 chartOffset: 0, isDragging: false, lastX: 0, marketMood: 'neutral', nextMoodChange: 0,
                 walletCash: 0, walletStocks: 0, walletAvgPrice: 0, pendingOrders: [], tradeLogs: [], tradeType: 'line',
@@ -475,33 +475,24 @@
                     if (snapshot.exists()) {
                         const data = snapshot.data();
                         
-                        // 🔹 [시세 데이터 기반 종가 승계]
-                        // 만약 날짜가 바뀌어서 리셋해야 한다면, 
-                        // 1. dailyHistory에서 가장 최근 종가를 가져옴
-                        // 2. 없다면 1171원 사용
-                        // 3. 그 가격을 오늘 basePrice로 설정
-                        
+                        // 🔹 [08:00 정각 리셋 체크 & 1242원 강제 적용]
                         const now = new Date();
                         const marketStart = new Date();
                         marketStart.setHours(MARKET_START_HOUR, MARKET_START_MIN, 0, 0);
                         const lastDate = new Date(data.lastUpdated || 0);
-                        
+
                         let needReset = false;
-                        // 08:00가 지났는데 마지막 업데이트가 08:00 이전이라면 리셋
-                        if (now >= marketStart && lastDate.getTime() < marketStart.getTime()) {
+                        // 1. 08:00가 지났는데 DB 데이터가 08:00 이전이면 리셋
+                        if (lastDate.getTime() < marketStart.getTime() && now.getTime() >= marketStart.getTime()) {
                              needReset = true;
                         }
+                        // 2. 시작가(basePrice)가 1242원이 아니면 강제 리셋 (1242원으로 맞춤)
+                        if (data.basePrice !== 1242) needReset = true;
 
                         if (needReset) {
-                            // 어제 종가 찾기 (dailyHistory가 이미 로드되었다고 가정하거나, 없으면 현재가)
-                            let prevClose = 1171;
-                            if (state.dailyHistory && state.dailyHistory.length > 0) {
-                                // 날짜순 정렬되어있다고 가정
-                                prevClose = state.dailyHistory[0].close; 
-                            } else if (data.currentPrice) {
-                                prevClose = data.currentPrice;
-                            }
-
+                            // 어제 종가(1242원)를 오늘의 시가로 확정
+                            const prevClose = 1242;
+                            
                             state.basePrice = prevClose;
                             state.currentPrice = prevClose;
                             state.history = [prevClose];
@@ -509,11 +500,14 @@
                             state.todayVolume = 0;
                             state.todayTradeAmount = 0;
                             
-                            // 리셋 저장
                             try {
                                 await window.updateDoc(docRef, {
-                                    basePrice: prevClose, basePriceLabel: "어제보다", history: [prevClose],
-                                    lastUpdated: marketStart.getTime(), todayVolume: 0, todayTradeAmount: 0,
+                                    basePrice: prevClose,
+                                    basePriceLabel: "어제보다",
+                                    history: [prevClose],
+                                    lastUpdated: marketStart.getTime(),
+                                    todayVolume: 0,
+                                    todayTradeAmount: 0,
                                     currentPrice: prevClose
                                 });
                             } catch(e) {}
@@ -526,10 +520,8 @@
                             state.todayTradeAmount = data.todayTradeAmount;
                         }
 
-                        // 🔹 [백필] 현재 시간까지 차트 그리기
                         await simulateMissingData(docRef);
 
-                        // 공통 데이터 로드
                         state.adminTrend = data.adminTrend || null; 
                         state.adminTrendUntil = data.adminTrendUntil || 0; 
                         state.manualPause = data.manualPause || false;
@@ -568,7 +560,6 @@
                 setInterval(() => { if (state.isAdmin) updateUI(); }, 500);
             };
 
-            // 🔹 [시뮬레이션]
             const simulateMissingData = async (docRef) => {
                 const now = new Date();
                 const marketStart = new Date(now);
@@ -583,7 +574,7 @@
 
                 const timeCap = Math.min(now.getTime(), marketEnd.getTime());
                 const diffMs = timeCap - marketStart.getTime();
-                const expectedCount = Math.floor(diffMs / 600000) + 1; // 08:00 포함
+                const expectedCount = Math.floor(diffMs / 600000) + 1;
                 
                 const missingTicks = expectedCount - currentHistory.length;
 
@@ -618,7 +609,7 @@
                             lastUpdated: state.lastUpdated,
                             todayVolume: state.todayVolume,
                             todayTradeAmount: state.todayTradeAmount,
-                            basePrice: state.basePrice // 유지
+                            basePrice: state.basePrice
                         });
                     } catch(e) { console.log("Sim update skip"); }
                 }
@@ -660,9 +651,70 @@
                 } catch (e) {}
             };
 
-            const initializeData = async (docRef) => { try { await window.setDoc(docRef, { currentPrice: 1171, history: [1171], lastUpdated: Date.now(), adminTrend: null, adminTrendUntil: 0, manualPause: false, basePrice: 1171, basePriceLabel: "어제보다", marketMood: 'neutral', nextMoodChange: Date.now() + 300000, todayVolume: 0, todayTradeAmount: 0 }); } catch(e) {} };
-            const startDailyHistorySync = () => { const dailyRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'daily_history'); window.onSnapshot(dailyRef, (snapshot) => { if (snapshot.exists()) { state.dailyHistory = snapshot.data().history || []; renderDailyQuotes(); } else { window.setDoc(dailyRef, { history: [] }); } }); };
-            const recordDailyHistory = async (dateObj, closePrice, basePrice, volume, tradeAmt) => { const dailyRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'daily_history'); const dateStr = `${dateObj.getFullYear()}.${String(dateObj.getMonth()+1).padStart(2,'0')}.${String(dateObj.getDate()).padStart(2,'0')}`; const diff = closePrice - basePrice; const diffRate = ((diff / basePrice) * 100).toFixed(2); const newItem = { date: dateStr, close: closePrice, diff: diff, rate: diffRate, vol: volume, amt: tradeAmt }; const docSnap = await window.getDoc(dailyRef); let currentHistory = []; if (docSnap.exists()) { currentHistory = docSnap.data().history || []; } if (currentHistory.length > 0 && currentHistory[0].date === dateStr) return; const newHistory = [newItem, ...currentHistory].slice(0, 365); await window.updateDoc(dailyRef, { history: newHistory }); };
+            const initializeData = async (docRef) => { try { await window.setDoc(docRef, { currentPrice: 1242, history: [1242], lastUpdated: Date.now(), adminTrend: null, adminTrendUntil: 0, manualPause: false, basePrice: 1242, basePriceLabel: "어제보다", marketMood: 'neutral', nextMoodChange: Date.now() + 300000, todayVolume: 0, todayTradeAmount: 0 }); } catch(e) {} };
+            
+            // 🔹 12월 2일 데이터 강제 복구 로직 (1242원, +6.1%)
+            const startDailyHistorySync = () => { 
+                const dailyRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'daily_history'); 
+                window.onSnapshot(dailyRef, async (snapshot) => { 
+                    if (snapshot.exists()) { 
+                        let history = snapshot.data().history || [];
+                        
+                        const dec2Index = history.findIndex(h => h.date === '2025.12.02');
+                        const fixedData = {
+                            date: '2025.12.02',
+                            close: 1242, // 수정된 종가
+                            diff: 71,    // 1171 -> 1242 (+71)
+                            rate: "6.10", // 6.1%
+                            vol: 15420,
+                            amt: 19151640
+                        };
+
+                        let needsUpdate = false;
+
+                        if (dec2Index !== -1) {
+                            // 이미 존재하면 값 확인 후 수정
+                            if (history[dec2Index].close !== 1242) {
+                                history[dec2Index] = fixedData;
+                                needsUpdate = true;
+                            }
+                        } else {
+                            // 없으면 추가
+                            history = [fixedData, ...history];
+                            needsUpdate = true;
+                        }
+                        
+                        // 정렬 보장
+                        history.sort((a,b) => new Date(b.date) - new Date(a.date));
+
+                        if (needsUpdate) {
+                            await window.updateDoc(dailyRef, { history: history });
+                        }
+
+                        state.dailyHistory = history; 
+                        renderDailyQuotes(); 
+                    } else { 
+                        window.setDoc(dailyRef, { history: [] }); 
+                    } 
+                }); 
+            };
+
+            async function recordDailyHistory(dateObj, closePrice, basePrice, volume, tradeAmt) { 
+                const dailyRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'daily_history'); 
+                const dateStr = `${dateObj.getFullYear()}.${String(dateObj.getMonth()+1).padStart(2,'0')}.${String(dateObj.getDate()).padStart(2,'0')}`; 
+                const diff = closePrice - basePrice; 
+                const diffRate = basePrice > 0 ? ((diff / basePrice) * 100).toFixed(2) : "0.00"; 
+                const newItem = { date: dateStr, close: closePrice, diff: diff, rate: diffRate, vol: volume, amt: tradeAmt }; 
+                
+                const docSnap = await window.getDoc(dailyRef); 
+                let currentHistory = []; 
+                if (docSnap.exists()) { currentHistory = docSnap.data().history || []; } 
+                if (currentHistory.length > 0 && currentHistory[0].date === dateStr) return; 
+                
+                const newHistory = [newItem, ...currentHistory].slice(0, 365); 
+                await window.updateDoc(dailyRef, { history: newHistory }); 
+            };
+
             const startWalletSync = () => { const walletDocRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'shared_wallet'); window.onSnapshot(walletDocRef, (snapshot) => { if (snapshot.exists()) { const data = snapshot.data(); state.walletCash = data.cash || 0; state.walletStocks = data.stocks || 0; state.walletAvgPrice = data.avgPrice || 0; state.pendingOrders = data.pendingOrders || []; updateWalletUI(); } else { window.setDoc(walletDocRef, { cash: 0, stocks: 0, avgPrice: 0, pendingOrders: [] }); } }); };
             const startHistorySync = () => { const histDocRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'trade_history'); window.onSnapshot(histDocRef, (snapshot) => { if (snapshot.exists()) { state.tradeLogs = snapshot.data().logs || []; renderHistory(); } else { window.setDoc(histDocRef, { logs: [] }); } }); };
             const addHistoryLog = async (type, detail) => { const histDocRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'trade_history'); const newLog = { type, detail, time: Date.now() }; const currentLogs = state.tradeLogs; const updatedLogs = [newLog, ...currentLogs].slice(0, 30); await window.updateDoc(histDocRef, { logs: updatedLogs }); };
@@ -793,15 +845,15 @@
                     
                     ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; 
                     fullHistory.forEach((p, i) => { 
-                        const x = i * xStep; const y = h - ((p - minVal) / range) * h; 
+                        const x = 20 + i * xStep; const y = h - ((p - minVal) / range) * h; 
                         if(i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); 
                         if (i === fullHistory.length - 1) { lastPoint = { x, y }; } 
                     }); 
                     ctx.stroke(); 
                     
                     if (fullHistory.length > 0) { 
-                        const lastX = (fullHistory.length - 1) * xStep; 
-                        ctx.lineTo(lastX, h); ctx.lineTo(0, h); ctx.closePath(); 
+                        const lastX = 20 + (fullHistory.length - 1) * xStep; 
+                        ctx.lineTo(lastX, h); ctx.lineTo(20, h); ctx.closePath(); 
                         const grad = ctx.createLinearGradient(0, 0, 0, h); 
                         grad.addColorStop(0, isUp ? 'rgba(240, 68, 82, 0.05)' : 'rgba(49, 130, 246, 0.05)'); 
                         grad.addColorStop(1, 'rgba(255, 255, 255, 0)'); 
@@ -815,8 +867,8 @@
                     const maxValData = Math.max(...fullHistory); const minValData = Math.min(...fullHistory); 
                     els.valHigh.innerText = Math.round(maxValData); els.valLow.innerText = Math.round(minValData); 
                     const maxIdx = fullHistory.lastIndexOf(maxValData); const minIdx = fullHistory.lastIndexOf(minValData); 
-                    const maxPos = { x: maxIdx * xStep, y: h - ((maxValData - minVal) / range) * h }; 
-                    const minPos = { x: minIdx * xStep, y: h - ((minValData - minVal) / range) * h }; 
+                    const maxPos = { x: 20 + maxIdx * xStep, y: h - ((maxValData - minVal) / range) * h }; 
+                    const minPos = { x: 20 + minIdx * xStep, y: h - ((minValData - minVal) / range) * h }; 
                     const labelX_Max = Math.min(Math.max(maxPos.x, 30), w - 30); const labelX_Min = Math.min(Math.max(minPos.x, 30), w - 30); 
                     els.labelHigh.style.opacity = 1; els.labelHigh.style.left = `${labelX_Max}px`; els.labelHigh.style.top = `${maxPos.y - 25}px`; 
                     els.labelLow.style.opacity = 1; els.labelLow.style.left = `${labelX_Min}px`; els.labelLow.style.top = `${minPos.y + 10}px`; 
@@ -824,7 +876,7 @@
                 } else { 
                     const candleWidth = xStep * 0.6; els.chartPulseDot.classList.add('hidden'); 
                     fullHistory.forEach((p, i) => { 
-                        const prev = i > 0 ? fullHistory[i-1] : state.basePrice; const x = i * xStep; 
+                        const prev = i > 0 ? fullHistory[i-1] : state.basePrice; const x = 20 + i * xStep; 
                         const yClose = h - ((p - minVal) / range) * h; const yOpen = h - ((prev - minVal) / range) * h; 
                         const isUp = p >= prev; const color = isUp ? '#f04452' : '#3182f6'; ctx.fillStyle = color; 
                         let bodyHeight = Math.abs(yClose - yOpen); if (bodyHeight < 1) bodyHeight = 1; const bodyY = Math.min(yOpen, yClose); 
