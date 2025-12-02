@@ -412,12 +412,12 @@
             const fmtAmt = n => { if(n >= 100000000) return (n/100000000).toFixed(1) + "억"; if(n >= 10000) return (n/10000).toFixed(0) + "만"; return fmt(n); };
             const showToast = (msg) => { const toast = document.createElement('div'); toast.className = 'toast-msg bg-[#333] text-white text-xs px-4 py-2 rounded-full shadow-lg mb-2 pointer-events-auto'; toast.innerText = msg; els.toastContainer.appendChild(toast); setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity 0.5s'; setTimeout(() => toast.remove(), 500); }, 2000); };
 
-            // 🔹 초기값 (사용자 요청: 1171원)
+            // 🔹 초기값 (1171원 승계)
             let state = {
-                currentPrice: 1171, basePrice: 1171, basePriceLabel: "시작가보다", history: [1171], tab: 'chart',
+                currentPrice: 1171, basePrice: 1171, basePriceLabel: "어제보다", history: [1171], tab: 'chart',
                 lastUpdated: 0, isConnected: false, adminTrend: null, adminTrendUntil: 0, manualPause: false, isAdmin: false,
                 chartOffset: 0, isDragging: false, lastX: 0, marketMood: 'neutral', nextMoodChange: 0,
-                walletCash: 0, walletStocks: 0, walletAvgPrice: 0, pendingOrders: [], tradeLogs: [], tradeType: 'buy',
+                walletCash: 0, walletStocks: 0, walletAvgPrice: 0, pendingOrders: [], tradeLogs: [], tradeType: 'line',
                 dailyHistory: [], todayVolume: 0, todayTradeAmount: 0,
                 chartType: 'line', droppedTicks: 0, zoomScale: 1.0
             };
@@ -475,39 +475,61 @@
                     if (snapshot.exists()) {
                         const data = snapshot.data();
                         
-                        // 🔹 [강제 초기화 로직]
-                        // 1. 마지막 업데이트 날짜가 오늘이 아니거나
-                        // 2. 현재가가 1175(이전 버그값)이거나
-                        // 3. 시작가가 1171이 아니면 -> 강제 리셋 (1171원 기준)
+                        // 🔹 [시세 데이터 기반 종가 승계]
+                        // 만약 날짜가 바뀌어서 리셋해야 한다면, 
+                        // 1. dailyHistory에서 가장 최근 종가를 가져옴
+                        // 2. 없다면 1171원 사용
+                        // 3. 그 가격을 오늘 basePrice로 설정
+                        
                         const now = new Date();
                         const marketStart = new Date();
                         marketStart.setHours(MARKET_START_HOUR, MARKET_START_MIN, 0, 0);
                         const lastDate = new Date(data.lastUpdated || 0);
                         
                         let needReset = false;
-                        if (lastDate.getDate() !== now.getDate()) needReset = true;
-                        if (data.basePrice !== 1171) needReset = true;
+                        // 08:00가 지났는데 마지막 업데이트가 08:00 이전이라면 리셋
+                        if (now >= marketStart && lastDate.getTime() < marketStart.getTime()) {
+                             needReset = true;
+                        }
 
                         if (needReset) {
-                            state.basePrice = 1171;
-                            state.currentPrice = 1171;
-                            state.history = [1171];
-                            state.lastUpdated = marketStart.getTime(); // 08:00로 설정
+                            // 어제 종가 찾기 (dailyHistory가 이미 로드되었다고 가정하거나, 없으면 현재가)
+                            let prevClose = 1171;
+                            if (state.dailyHistory && state.dailyHistory.length > 0) {
+                                // 날짜순 정렬되어있다고 가정
+                                prevClose = state.dailyHistory[0].close; 
+                            } else if (data.currentPrice) {
+                                prevClose = data.currentPrice;
+                            }
+
+                            state.basePrice = prevClose;
+                            state.currentPrice = prevClose;
+                            state.history = [prevClose];
+                            state.lastUpdated = marketStart.getTime();
                             state.todayVolume = 0;
                             state.todayTradeAmount = 0;
+                            
+                            // 리셋 저장
+                            try {
+                                await window.updateDoc(docRef, {
+                                    basePrice: prevClose, basePriceLabel: "어제보다", history: [prevClose],
+                                    lastUpdated: marketStart.getTime(), todayVolume: 0, todayTradeAmount: 0,
+                                    currentPrice: prevClose
+                                });
+                            } catch(e) {}
                         } else {
                             state.currentPrice = data.currentPrice;
-                            state.history = data.history || [1171];
+                            state.history = data.history || [];
                             state.lastUpdated = data.lastUpdated;
                             state.basePrice = data.basePrice;
                             state.todayVolume = data.todayVolume;
                             state.todayTradeAmount = data.todayTradeAmount;
                         }
 
-                        // 🔹 [백필] 08:00 ~ 현재까지 빈 차트 즉시 채우기
+                        // 🔹 [백필] 현재 시간까지 차트 그리기
                         await simulateMissingData(docRef);
 
-                        // 공통 데이터
+                        // 공통 데이터 로드
                         state.adminTrend = data.adminTrend || null; 
                         state.adminTrendUntil = data.adminTrendUntil || 0; 
                         state.manualPause = data.manualPause || false;
@@ -546,7 +568,7 @@
                 setInterval(() => { if (state.isAdmin) updateUI(); }, 500);
             };
 
-            // 🔹 [시뮬레이션] 08:00부터 현재까지 강제 백필
+            // 🔹 [시뮬레이션]
             const simulateMissingData = async (docRef) => {
                 const now = new Date();
                 const marketStart = new Date(now);
@@ -554,21 +576,17 @@
                 const marketEnd = new Date(now);
                 marketEnd.setHours(MARKET_END_HOUR, MARKET_END_MIN, 0, 0);
 
-                // 08:00 이전이면 아무것도 안함
                 if (now.getTime() < marketStart.getTime()) return;
 
                 let currentHistory = [...state.history];
                 let currentPrice = state.currentPrice;
 
-                // 1. 현재 시간까지의 틱 수 계산
                 const timeCap = Math.min(now.getTime(), marketEnd.getTime());
                 const diffMs = timeCap - marketStart.getTime();
                 const expectedCount = Math.floor(diffMs / 600000) + 1; // 08:00 포함
                 
-                // 2. 부족한 틱 수 확인
                 const missingTicks = expectedCount - currentHistory.length;
 
-                // 3. 부족하면 채워넣기
                 if (missingTicks > 0) {
                     let simVol = state.todayVolume;
                     let simAmt = state.todayTradeAmount;
@@ -584,7 +602,6 @@
                         simAmt += (v * currentPrice);
                     }
 
-                    // 로컬 갱신
                     state.history = currentHistory;
                     state.currentPrice = currentPrice;
                     state.lastUpdated = marketStart.getTime() + ((currentHistory.length - 1) * 600000);
@@ -594,7 +611,6 @@
                     updateUI(); 
                     drawChart();
 
-                    // 서버 저장
                     try {
                         await window.updateDoc(docRef, {
                             currentPrice: state.currentPrice,
@@ -602,8 +618,7 @@
                             lastUpdated: state.lastUpdated,
                             todayVolume: state.todayVolume,
                             todayTradeAmount: state.todayTradeAmount,
-                            basePrice: 1171, // 강제 고정
-                            basePriceLabel: "어제보다"
+                            basePrice: state.basePrice // 유지
                         });
                     } catch(e) { console.log("Sim update skip"); }
                 }
@@ -850,7 +865,6 @@
                 else { els.viewInfo.classList.remove('hidden'); els.viewInfo.classList.add('flex'); } 
             }
             els.tabChart.onclick = () => switchTab('chart'); els.tabOrder.onclick = () => switchTab('order'); els.tabDaily.onclick = () => switchTab('daily'); els.tabWallet.onclick = () => switchTab('wallet'); els.tabInfo.onclick = () => switchTab('info');
-            // Zoom buttons logic was removed
         });
     </script>
 </body>
