@@ -103,7 +103,7 @@
         .stepper-btn { width: 52px; height: 52px; border-radius: 12px; background: #f2f4f6; color: #333; font-weight: bold; font-size: 24px; display: flex; align-items: center; justify-content: center; transition: background-color 0.2s, transform 0.1s; }
         .stepper-btn:active { background: #d1d6db; transform: scale(0.95); }
         
-        /* 일별 시세 테이블 스타일 */
+        /* 일별 시세 테이블 스타일 (완전 원상 복구) */
         .daily-table { width: 100%; font-size: 13px; border-collapse: collapse; table-layout: fixed; }
         .daily-table th { padding: 12px 0; color: #8b95a1; font-weight: 500; border-bottom: 1px solid #f2f4f6; text-align: right; white-space: nowrap; }
         .daily-table th:first-child { text-align: left; }
@@ -412,9 +412,9 @@
             const fmtAmt = n => { if(n >= 100000000) return (n/100000000).toFixed(1) + "억"; if(n >= 10000) return (n/10000).toFixed(0) + "만"; return fmt(n); };
             const showToast = (msg) => { const toast = document.createElement('div'); toast.className = 'toast-msg bg-[#333] text-white text-xs px-4 py-2 rounded-full shadow-lg mb-2 pointer-events-auto'; toast.innerText = msg; els.toastContainer.appendChild(toast); setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity 0.5s'; setTimeout(() => toast.remove(), 500); }, 2000); };
 
-            // 🔹 초기값 (1242원 승계)
+            // 🔹 초기값 (1271원 설정)
             let state = {
-                currentPrice: 1242, basePrice: 1242, basePriceLabel: "시작가보다", history: [1242], tab: 'chart',
+                currentPrice: 1271, basePrice: 1271, basePriceLabel: "시작가보다", history: [1271], tab: 'chart',
                 lastUpdated: 0, isConnected: false, adminTrend: null, adminTrendUntil: 0, manualPause: false, isAdmin: false,
                 chartOffset: 0, isDragging: false, lastX: 0, marketMood: 'neutral', nextMoodChange: 0,
                 walletCash: 0, walletStocks: 0, walletAvgPrice: 0, pendingOrders: [], tradeLogs: [], tradeType: 'line',
@@ -475,23 +475,21 @@
                     if (snapshot.exists()) {
                         const data = snapshot.data();
                         
-                        // 🔹 [08:00 정각 리셋 체크 & 1242원 강제 적용]
+                        // 🔹 [1271원 강제 고정 및 리셋]
                         const now = new Date();
                         const marketStart = new Date();
                         marketStart.setHours(MARKET_START_HOUR, MARKET_START_MIN, 0, 0);
                         const lastDate = new Date(data.lastUpdated || 0);
 
                         let needReset = false;
-                        // 1. 08:00가 지났는데 DB 데이터가 08:00 이전이면 리셋
                         if (lastDate.getTime() < marketStart.getTime() && now.getTime() >= marketStart.getTime()) {
                              needReset = true;
                         }
-                        // 2. 시작가(basePrice)가 1242원이 아니면 강제 리셋 (1242원으로 맞춤)
-                        if (data.basePrice !== 1242) needReset = true;
+                        // 시작가가 1271원이 아니면 리셋
+                        if (data.basePrice !== 1271) needReset = true;
 
                         if (needReset) {
-                            // 어제 종가(1242원)를 오늘의 시가로 확정
-                            const prevClose = 1242;
+                            const prevClose = 1271;
                             
                             state.basePrice = prevClose;
                             state.currentPrice = prevClose;
@@ -651,43 +649,29 @@
                 } catch (e) {}
             };
 
-            const initializeData = async (docRef) => { try { await window.setDoc(docRef, { currentPrice: 1242, history: [1242], lastUpdated: Date.now(), adminTrend: null, adminTrendUntil: 0, manualPause: false, basePrice: 1242, basePriceLabel: "어제보다", marketMood: 'neutral', nextMoodChange: Date.now() + 300000, todayVolume: 0, todayTradeAmount: 0 }); } catch(e) {} };
+            const initializeData = async (docRef) => { try { await window.setDoc(docRef, { currentPrice: 1271, history: [1271], lastUpdated: Date.now(), adminTrend: null, adminTrendUntil: 0, manualPause: false, basePrice: 1271, basePriceLabel: "어제보다", marketMood: 'neutral', nextMoodChange: Date.now() + 300000, todayVolume: 0, todayTradeAmount: 0 }); } catch(e) {} };
             
-            // 🔹 12월 2일 데이터 강제 복구 로직 (1242원, +6.1%)
+            // 🔹 12월 3일 데이터 강제 복구 로직 (1271원)
             const startDailyHistorySync = () => { 
                 const dailyRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'daily_history'); 
                 window.onSnapshot(dailyRef, async (snapshot) => { 
                     if (snapshot.exists()) { 
                         let history = snapshot.data().history || [];
                         
-                        const dec2Index = history.findIndex(h => h.date === '2025.12.02');
-                        const fixedData = {
-                            date: '2025.12.02',
-                            close: 1242, // 수정된 종가
-                            diff: 71,    // 1171 -> 1242 (+71)
-                            rate: "6.10", // 6.1%
-                            vol: 15420,
-                            amt: 19151640
-                        };
-
-                        let needsUpdate = false;
-
-                        if (dec2Index !== -1) {
-                            // 이미 존재하면 값 확인 후 수정
-                            if (history[dec2Index].close !== 1242) {
-                                history[dec2Index] = fixedData;
-                                needsUpdate = true;
-                            }
-                        } else {
-                            // 없으면 추가
-                            history = [fixedData, ...history];
-                            needsUpdate = true;
-                        }
-                        
-                        // 정렬 보장
-                        history.sort((a,b) => new Date(b.date) - new Date(a.date));
-
-                        if (needsUpdate) {
+                        // 🚨 12.03 누락 데이터 강제 주입
+                        const hasDec3 = history.some(h => h.date === '2025.12.03');
+                        if (!hasDec3) {
+                            const fixedData = {
+                                date: '2025.12.03',
+                                close: 1271, // 3일 종가
+                                diff: 29,    // 1271 - 1242 = 29
+                                rate: "2.33", // 2.33%
+                                vol: 12050,  // 임의값
+                                amt: 15315550 
+                            };
+                            history = [fixedData, ...history]; 
+                            history.sort((a,b) => new Date(b.date) - new Date(a.date));
+                            
                             await window.updateDoc(dailyRef, { history: history });
                         }
 
