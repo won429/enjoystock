@@ -1,350 +1,929 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Enjoy Stock</title>
-  <style>
-    :root {
-      --bg: #f6f8fb;
-      --card: #fff;
-      --text: #16181d;
-      --muted: #7a828f;
-      --up: #e53935;
-      --down: #1e88e5;
-      --line: #e8edf3;
-      --primary: #2b6ff7;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
-      background: var(--bg);
-      color: var(--text);
-    }
-    .app { max-width: 460px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; }
-    .header { background: var(--card); padding: 16px; border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 20; }
-    .title { margin: 0; font-size: 22px; font-weight: 800; }
-    .price-wrap { margin-top: 8px; display: flex; align-items: end; gap: 6px; }
-    .price { font-size: 34px; font-weight: 900; letter-spacing: -0.5px; }
-    .unit { font-size: 20px; font-weight: 700; }
-    .diff { margin-top: 4px; font-size: 14px; font-weight: 600; }
-    .up { color: var(--up); }
-    .down { color: var(--down); }
-    .tabs { display: grid; grid-template-columns: repeat(4,1fr); background: var(--card); border-bottom: 1px solid var(--line); }
-    .tab-btn { border: 0; background: transparent; padding: 12px 8px; font-weight: 700; color: var(--muted); cursor: pointer; }
-    .tab-btn.active { color: var(--text); border-bottom: 2px solid var(--text); }
-    .view { display: none; padding: 14px; }
-    .view.active { display: block; }
-    .card { background: var(--card); border-radius: 14px; padding: 14px; border: 1px solid var(--line); }
-    .card + .card { margin-top: 12px; }
-    #chart { width: 100%; height: 210px; display: block; }
-    .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-    .muted { color: var(--muted); font-size: 13px; }
-    .book-row { display: grid; grid-template-columns: 1fr 1fr 1fr; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
-    .book-row:last-child { border-bottom: 0; }
-    .book-row span:nth-child(1) { color: #4e5968; text-align: right; padding-right: 8px; }
-    .book-row span:nth-child(2) { text-align: center; font-weight: 800; }
-    .book-row span:nth-child(3) { color: #4e5968; text-align: left; padding-left: 8px; }
-    .trade-panel { position: sticky; bottom: 0; background: var(--card); border-top: 1px solid var(--line); padding: 12px; }
-    .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
-    input[type="number"] { width: 100%; padding: 10px; border-radius: 10px; border: 1px solid #d9e1eb; font-size: 15px; }
-    .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    button.action { border: 0; border-radius: 10px; padding: 12px; font-size: 16px; font-weight: 800; cursor: pointer; }
-    .buy { background: #ffe5e5; color: var(--up); }
-    .sell { background: #e7f1ff; color: var(--down); }
-    .pill { display: inline-block; padding: 3px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; }
-    .log { font-size: 12px; padding: 6px 0; border-bottom: 1px solid var(--line); }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Enjoy Stock - Shared Wallet</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" type="text/css"/>
+    
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, onSnapshot, setDoc, updateDoc, getDoc, runTransaction } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyABn9xi7a-3LyLpvS6HT03gJUGTlQkgHmk",
+            authDomain: "enjoystock.firebaseapp.com",
+            projectId: "enjoystock",
+            storageBucket: "enjoystock.firebasestorage.app",
+            messagingSenderId: "981969177924",
+            appId: "1:981969177924:web:51b0093a0d1b001ead9b11"
+        };
+
+        if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "") {
+            const app = initializeApp(firebaseConfig);
+            const auth = getAuth(app);
+            const db = getFirestore(app);
+            const appId = 'enjoy-stock-live';
+
+            window.db = db;
+            window.auth = auth;
+            window.appId = appId;
+            window.isFirebaseInitialized = true;
+        } else {
+            window.isFirebaseInitialized = false;
+        }
+
+        window.signInAnonymously = signInAnonymously;
+        window.onAuthStateChanged = onAuthStateChanged;
+        window.doc = doc;
+        window.onSnapshot = onSnapshot;
+        window.setDoc = setDoc;
+        window.updateDoc = updateDoc;
+        window.getDoc = getDoc;
+        window.runTransaction = runTransaction;
+        
+        document.dispatchEvent(new Event('firebase-ready'));
+    </script>
+
+    <style>
+        body { 
+            font-family: "Pretendard", -apple-system, sans-serif;
+            background-color: #ffffff;
+            color: #191f28;
+            overflow: hidden;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* 탭 메뉴 */
+        .tab-item { position: relative; color: #8b95a1; font-weight: 600; cursor: pointer; transition: color 0.2s; white-space: nowrap; }
+        .tab-item.active { color: #191f28; }
+        .tab-item.active::after { content: ''; position: absolute; bottom: -11px; left: 0; right: 0; height: 2px; background-color: #191f28; }
+
+        /* 호가창 */
+        .order-row { display: grid; grid-template-columns: 1fr 1.2fr 1fr; height: 40px; align-items: center; border-bottom: 1px solid #f2f4f6; position: relative; }
+        .order-cell { position: relative; height: 100%; display: flex; align-items: center; z-index: 10; padding: 0 8px; }
+        .cell-ask-vol { justify-content: flex-end; color: #333; font-weight: 500; font-size: 12px; }
+        .cell-price { justify-content: center; font-weight: 700; border-left: 1px solid #f2f4f6; border-right: 1px solid #f2f4f6; font-size: 13px; }
+        .cell-bid-vol { justify-content: flex-start; color: #333; font-weight: 500; font-size: 12px; }
+
+        .bg-ask { background-color: #f4f9ff; } .text-ask { color: #3182f6; }
+        .bg-bid { background-color: #fff4f4; } .text-bid { color: #f04452; }
+        .text-up { color: #f04452; } .text-down { color: #3182f6; }
+        
+        .vol-bar { height: 100%; position: absolute; top: 0; z-index: 0; opacity: 0.15; }
+        .vol-bar-ask { right: 0; background-color: #3182f6; } .vol-bar-bid { left: 0; background-color: #f04452; } 
+
+        /* 애니메이션 */
+        @keyframes slideDown { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .toast-msg { animation: slideDown 0.3s ease-out forwards; }
+        .loader { border: 3px solid #f3f3f3; border-radius: 50%; border-top: 3px solid #3182f6; width: 20px; height: 20px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        .slide-up { animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        
+        #market-closed-overlay { backdrop-filter: blur(2px); }
+        .divider-section { border-top: 8px solid #f2f4f6; margin-top: 20px; padding-top: 20px; }
+        .trade-bar { box-shadow: 0 -4px 20px rgba(0,0,0,0.05); }
+
+        /* 주문 내역 스타일 */
+        .log-item { font-size: 12px; padding: 8px 0; border-bottom: 1px solid #f2f4f6; display: flex; justify-content: space-between; align-items: center; }
+        .log-item:last-child { border-bottom: none; }
+        .log-time { color: #8b95a1; font-size: 10px; margin-right: 8px; }
+        .log-tag { padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 10px; margin-right: 6px; }
+        .log-buy { background-color: #fff4f4; color: #f04452; }
+        .log-sell { background-color: #f4f9ff; color: #3182f6; }
+        .log-deposit { background-color: #f2f4f6; color: #333; }
+        .log-wait { background-color: #f2f4f6; color: #6b7684; }
+
+        /* Stepper Input Style */
+        .stepper-btn { width: 52px; height: 52px; border-radius: 12px; background: #f2f4f6; color: #333; font-weight: bold; font-size: 24px; display: flex; align-items: center; justify-content: center; transition: background-color 0.2s, transform 0.1s; }
+        .stepper-btn:active { background: #d1d6db; transform: scale(0.95); }
+        
+        /* 일별 시세 테이블 스타일 (완전 원상 복구) */
+        .daily-table { width: 100%; font-size: 13px; border-collapse: collapse; table-layout: fixed; }
+        .daily-table th { padding: 12px 0; color: #8b95a1; font-weight: 500; border-bottom: 1px solid #f2f4f6; text-align: right; white-space: nowrap; }
+        .daily-table th:first-child { text-align: left; }
+        .daily-table td { padding: 14px 0; border-bottom: 1px solid #f2f4f6; text-align: right; color: #333; white-space: nowrap; }
+        .daily-table td:first-child { text-align: left; color: #8b95a1; font-size: 12px; }
+        .daily-table .text-up { color: #f04452; }
+        .daily-table .text-down { color: #3182f6; }
+        .daily-table .text-gray { color: #333; }
+
+        /* 차트 토글 */
+        .chart-toggle-btn { 
+            padding: 4px 10px; 
+            font-size: 11px; 
+            font-weight: 600; 
+            border-radius: 20px; 
+            color: #8b95a1; 
+            background-color: #f2f4f6; 
+            transition: all 0.2s;
+        }
+        .chart-toggle-btn.active { 
+            background-color: #333; 
+            color: white; 
+        }
+
+        /* 펄스 애니메이션 */
+        .pulse-dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            position: absolute; transform: translate(-50%, -50%);
+            pointer-events: none; z-index: 10;
+        }
+        .pulse-ring {
+            content: ''; width: 100%; height: 100%;
+            border-radius: 50%; position: absolute; top: 0; left: 0;
+            opacity: 0; animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+        }
+        @keyframes pulse-ring {
+            0% { transform: scale(0.5); opacity: 0.8; }
+            100% { transform: scale(3.5); opacity: 0; }
+        }
+    </style>
 </head>
-<body>
-  <main class="app">
-    <header class="header">
-      <h1 class="title">엔조이 주식</h1>
-      <div class="price-wrap">
-        <div id="currentPrice" class="price">1,270</div>
-        <div class="unit">원</div>
-      </div>
-      <div id="priceDiff" class="diff muted">기준가 대비 0원 (0.00%)</div>
+<body class="flex flex-col h-[100dvh] w-screen relative">
+
+    <!-- 토스트 -->
+    <div id="toast-container" class="absolute top-4 left-0 right-0 flex justify-center z-[70] pointer-events-none"></div>
+    
+    <!-- 설정 필요 안내 오버레이 -->
+    <div id="config-overlay" class="fixed inset-0 bg-black/90 z-[110] hidden flex flex-col items-center justify-center text-white p-6 text-center backdrop-blur-sm">
+        <h2 class="text-2xl font-bold mb-3">Firebase 설정 필요</h2>
+        <p class="text-gray-300 mb-6 text-sm">firebaseConfig 값을 확인해주세요.</p>
+    </div>
+
+    <!-- 로딩 -->
+    <div id="loading-overlay" class="fixed inset-0 bg-white z-[100] flex flex-col items-center justify-center transition-opacity duration-500">
+        <div class="loader mb-4"></div>
+        <p class="text-sm text-gray-500">시세 동기화 중...</p>
+    </div>
+
+    <!-- 공지사항 배너 -->
+    <div class="w-full bg-[#f2f4f6] text-[#6b7684] text-[11px] font-bold py-2.5 px-4 text-center z-30 relative border-b border-gray-200">
+        📢 서버 하루 할당량으로 인한 10분 주기 업데이트로 제한합니다.
+    </div>
+
+    <!-- 장 마감 오버레이 -->
+    <div id="market-closed-overlay" class="absolute top-28 left-0 right-0 bottom-0 bg-white/50 z-40 hidden flex items-center justify-center pointer-events-none">
+        <div class="bg-black/80 text-white px-4 py-2 rounded-full text-sm font-bold shadow-lg" id="market-msg">
+            🌙 장 마감 (08:00 ~ 23:30)
+        </div>
+    </div>
+
+    <!-- 로그인 모달 -->
+    <div id="login-modal" class="fixed inset-0 bg-black/50 z-[70] hidden flex items-center justify-center px-6 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl p-6 w-full max-w-xs shadow-2xl">
+            <h3 class="text-lg font-bold mb-4 text-center">관리자 로그인</h3>
+            <input type="password" id="admin-pw" placeholder="비밀번호" class="w-full bg-gray-100 rounded-xl px-4 py-3 mb-4 outline-none" inputmode="numeric">
+            <div class="flex gap-2">
+                <button id="btn-login-cancel" class="flex-1 py-3 rounded-xl font-bold text-gray-500 hover:bg-gray-100">취소</button>
+                <button id="btn-login-confirm" class="flex-1 py-3 rounded-xl font-bold bg-[#3182f6] text-white">확인</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 주문 모달 -->
+    <div id="trade-modal" class="fixed inset-0 bg-black/50 z-[60] hidden flex items-end justify-center backdrop-blur-sm">
+        <div class="bg-white rounded-t-3xl w-full max-w-md p-6 shadow-2xl slide-up">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold" id="trade-modal-title">매수하기</h3>
+                <button id="btn-trade-close" class="p-2 text-gray-400 hover:text-gray-600">닫기</button>
+            </div>
+            <div class="mb-5">
+                <label class="block text-xs font-bold text-gray-500 mb-2">가격 (원)</label>
+                <div class="flex items-center gap-3">
+                    <button class="stepper-btn" id="btn-price-down">-</button>
+                    <div class="flex-1 h-[52px] bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-center">
+                        <input type="number" id="input-price" class="w-full text-center text-xl font-bold bg-transparent outline-none" value="0">
+                    </div>
+                    <button class="stepper-btn" id="btn-price-up">+</button>
+                </div>
+            </div>
+            <div class="mb-6">
+                <label class="block text-xs font-bold text-gray-500 mb-2">수량 (주)</label>
+                <div class="flex items-center gap-3">
+                    <button class="stepper-btn" id="btn-qty-down">-</button>
+                    <div class="flex-1 h-[52px] bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-center">
+                        <input type="number" id="input-qty" class="w-full text-center text-xl font-bold bg-transparent outline-none" value="1">
+                    </div>
+                    <button class="stepper-btn" id="btn-qty-up">+</button>
+                </div>
+            </div>
+            <div class="bg-gray-50 rounded-xl p-4 mb-4 flex justify-between items-center">
+                <span class="text-sm font-bold text-gray-500">총 주문 금액</span>
+                <span class="text-lg font-bold text-[#191f28]"><span id="trade-total-amount">0</span>원</span>
+            </div>
+            <button id="btn-trade-confirm" class="w-full py-4 rounded-xl font-bold text-white text-lg bg-[#3182f6] shadow-lg active:scale-95 transition-transform">주문하기</button>
+        </div>
+    </div>
+
+    <!-- 헤더 -->
+    <header class="px-5 pt-6 pb-2 bg-white z-20">
+        <div class="flex justify-between items-center mb-2">
+            <div class="flex items-center gap-2">
+                <button id="btn-home" class="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center transition-colors flex-shrink-0 text-[#191f28]">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+                </button>
+                <h1 class="text-2xl font-bold tracking-tight text-[#191f28] flex items-center gap-2">
+                    엔조이
+                    <span class="text-[10px] font-bold text-white bg-[#f04452] px-1.5 py-0.5 rounded-full tracking-tight shadow-sm leading-tight">KOSPI</span>
+                    <span id="sync-status" class="w-2 h-2 rounded-full bg-gray-300 ml-1 flex-shrink-0" title="서버 연결 상태"></span>
+                    <span id="market-mood-badge" class="text-[10px] px-2 py-0.5 rounded-full font-bold ml-1 hidden cursor-default tracking-tight"></span>
+                </h1>
+            </div>
+            <div class="flex items-center gap-2">
+                <button id="btn-profile" class="w-10 h-10 rounded-full bg-gray-50 hover:bg-gray-100 flex items-center justify-center transition-colors border border-gray-100 flex-shrink-0">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#8b95a1" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                </button>
+            </div>
+        </div>
+        <div class="flex items-end gap-2 mb-1">
+            <span id="current-price" class="text-3xl font-bold text-[#191f28]">-</span>
+            <span class="text-xl font-bold text-[#191f28]">원</span>
+        </div>
+        <div class="flex items-center gap-1.5 text-sm font-medium">
+            <span id="diff-label" class="text-[#8b95a1]">시작가보다</span>
+            <span id="price-diff-box" class="flex items-center gap-1 text-[#8b95a1]"><span id="price-diff">-</span><span id="price-rate"></span></span>
+        </div>
     </header>
 
-    <nav class="tabs">
-      <button class="tab-btn active" data-tab="chart">차트</button>
-      <button class="tab-btn" data-tab="orderbook">호가</button>
-      <button class="tab-btn" data-tab="wallet">지갑</button>
-      <button class="tab-btn" data-tab="logs">내역</button>
-    </nav>
+    <!-- 탭 메뉴 -->
+    <div class="flex items-center px-5 border-b border-[#f2f4f6] gap-5 text-[15px] mb-6 bg-white z-10 overflow-x-auto scrollbar-hide">
+        <button id="tab-chart" class="tab-item active py-2.5 flex-shrink-0">차트</button>
+        <button id="tab-order" class="tab-item py-2.5 flex-shrink-0">호가</button>
+        <button id="tab-daily" class="tab-item py-2.5 flex-shrink-0">시세</button>
+        <button id="tab-wallet" class="tab-item py-2.5 flex-shrink-0">보유자산</button>
+        <button id="tab-info" class="tab-item py-2.5 flex-shrink-0">종목정보</button>
+    </div>
 
-    <section id="chart" class="view active">
-      <div class="card">
-        <canvas id="chartCanvas"></canvas>
-        <div class="row muted" style="margin-top:8px;">
-          <span>실시간 시뮬레이터 (1초)</span>
-          <span id="marketState" class="pill" style="background:#edf4ff;color:#2b6ff7;">운영중</span>
+    <!-- 메인 컨텐츠 -->
+    <main class="flex-1 flex flex-col relative overflow-y-auto bg-white pb-36 scrollbar-hide"> 
+        
+        <!-- 차트 뷰 -->
+        <div id="view-chart" class="flex flex-col w-full relative">
+            <div id="market-msg-container" class="absolute top-10 left-0 right-0 z-40 flex justify-center pointer-events-none hidden">
+                <div class="bg-black/70 backdrop-blur-sm text-white px-3 py-1.5 rounded-full text-xs font-bold shadow-sm flex items-center gap-2" id="market-msg-badge">🌙 장 마감</div>
+            </div>
+
+            <div class="px-5 flex flex-col mt-4 mb-2">
+                <div class="flex justify-between items-center mb-2">
+                    <div class="flex items-center gap-1">
+                        <div class="w-1.5 h-1.5 rounded-full bg-[#3182f6] animate-pulse" id="live-dot"></div>
+                        <span class="text-xs font-medium text-[#8b95a1]" id="chart-status-text">장 운영중 (08:00~23:30)</span>
+                    </div>
+                    <div class="flex gap-1">
+                        <button id="btn-chart-line" class="chart-toggle-btn active">선형</button>
+                        <button id="btn-chart-candle" class="chart-toggle-btn">캔들</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 차트 영역 -->
+            <div class="w-full h-[280px] relative mt-2" id="chart-container">
+                <canvas id="chart-canvas" class="w-full h-full block"></canvas>
+                
+                <!-- 펄스 애니메이션 점 -->
+                <div id="chart-pulse-dot" class="pulse-dot hidden" style="background-color: #3182f6;">
+                    <div class="pulse-ring" style="background-color: #3182f6;"></div>
+                </div>
+
+                <div id="label-high" class="absolute text-[11px] text-[#3182f6] font-medium opacity-0">최고 <span id="val-high"></span></div>
+                <div id="label-low" class="absolute text-[11px] text-[#3182f6] font-medium opacity-0">최저 <span id="val-low"></span></div>
+                <!-- 시간 축 라벨 -->
+                <div class="absolute bottom-1 left-2 text-[10px] text-gray-400">08:00</div>
+                <div class="absolute bottom-1 right-2 text-[10px] text-gray-400">23:30</div>
+                <div class="absolute left-0 right-0 border-t border-dashed border-[#e5e8eb]" style="top: 50%;" id="base-line"></div>
+            </div>
+            
+            <div class="divider-section mx-5">
+                <p class="text-[10px] text-gray-300 mb-2">차트는 오늘 하루의 전체 흐름(08:00~23:30)을 보여줍니다.</p>
+            </div>
+
+            <!-- 내 자산 섹션 -->
+            <div class="px-5 mt-2">
+                <div class="bg-[#f9fafb] rounded-2xl p-6 border border-[#f2f4f6] shadow-sm">
+                    <p class="text-sm text-[#8b95a1] mb-1 flex items-center gap-1">🤝 우리들의 공용 계좌 잔고</p>
+                    <h2 class="text-3xl font-bold text-[#191f28] mb-4"><span id="my-cash">0</span>원</h2>
+                    <div class="flex gap-4 border-t border-[#e5e8eb] pt-4">
+                        <div class="flex-1">
+                            <span class="block text-xs text-[#8b95a1] mb-1">보유 엔조이</span>
+                            <span class="block text-lg font-bold text-[#191f28]"><span id="my-stock-cnt">0</span>주</span>
+                        </div>
+                        <div class="flex-1 text-right">
+                            <span class="block text-xs text-[#8b95a1] mb-1">수익률 (평단 <span id="my-avg-price">0</span>)</span>
+                            <span class="block text-lg font-bold" id="my-return-rate">0%</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-8 mb-8">
+                    <h3 class="text-sm font-bold text-[#191f28] mb-3">📋 실시간 체결 내역</h3>
+                    <div id="trade-history-list" class="flex flex-col"></div>
+                </div>
+            </div>
         </div>
-      </div>
-    </section>
 
-    <section id="orderbook" class="view">
-      <div class="card">
-        <div class="row" style="font-weight:700; margin-bottom:6px;"><span>매도잔량</span><span>가격</span><span>매수잔량</span></div>
-        <div id="orderRows"></div>
-      </div>
-    </section>
+        <!-- 호가, 시세, 자산, 정보 뷰 -->
+        <div id="view-order" class="hidden flex-col w-full pb-10">
+            <div class="grid grid-cols-[1fr_1.2fr_1fr] text-xs text-[#8b95a1] border-b border-[#f2f4f6] pb-2 px-0 bg-white sticky top-0 z-10">
+                <div class="text-center">매도잔량</div><div class="text-center">호가</div><div class="text-center">매수잔량</div>
+            </div>
+            <div id="order-book-list" class="flex flex-col w-full"></div>
+        </div>
+        <div id="view-daily" class="hidden flex-col w-full px-5 pb-10">
+             <table class="daily-table"><thead><tr><th>일자</th><th>종가</th><th>등락률</th><th>거래량</th><th style="padding-right: 0;">거래대금</th></tr></thead><tbody id="daily-quote-list"></tbody></table>
+        </div>
+        <div id="view-wallet" class="hidden flex-col w-full px-6 pt-10">
+            <div class="mb-8"><p class="text-sm font-medium text-gray-500 mb-1">1주 평균금액</p><div class="flex items-end gap-1"><h2 class="text-4xl font-bold text-[#191f28] tracking-tight"><span id="w-avg-price-big">0</span>원</h2></div></div>
+            <div class="flex flex-col divide-y divide-gray-100 border-t border-b border-gray-100">
+                <div class="flex justify-between items-center py-5"><span class="text-gray-500 font-medium">보유 수량</span><span class="text-[#191f28] font-bold text-lg"><span id="w-stock-qty">0</span>주</span></div>
+                <div class="flex justify-between items-start py-5"><span class="text-gray-500 font-medium mt-1">총 평가금액</span><div class="text-right"><div class="text-[#191f28] font-bold text-lg mb-0.5"><span id="w-total-val">0</span>원</div><div class="text-sm font-medium" id="w-pl-info">0 (0.0%)</div></div></div>
+                <div class="flex justify-between items-center py-5"><span class="text-gray-500 font-medium">투자 원금</span><span class="text-[#191f28] font-bold text-lg"><span id="w-principal">0</span>원</span></div>
+                <div class="flex justify-between items-center py-5"><span class="text-gray-500 font-medium">보유 현금</span><span class="text-[#191f28] font-bold text-lg"><span id="w-cash-row">0</span>원</span></div>
+            </div>
+            <div class="mt-10"><h3 class="text-sm font-bold text-[#191f28] mb-3 flex items-center gap-2">⏳ 미체결 주문 <span id="pending-count" class="bg-gray-100 text-gray-600 text-[10px] px-1.5 py-0.5 rounded-full">0</span></h3><div id="pending-order-list" class="flex flex-col space-y-2"></div></div>
+            <div class="mt-8 mb-20"><h3 class="text-sm font-bold text-[#191f28] mb-3">📋 실시간 체결 내역</h3><div id="w-trade-history-list" class="flex flex-col"></div></div>
+        </div>
+        <div id="view-info" class="hidden flex-col w-full px-5 pt-4">
+            <div class="bg-[#f9fafb] p-5 rounded-2xl border border-[#f2f4f6]">
+                <h3 class="font-bold text-lg mb-2">기업 개요</h3>
+                <div class="text-sm text-[#6b7684] space-y-2"><p><span class="font-bold text-[#333]">종목명</span> 엔조이 (Enjoy)</p><p><span class="font-bold text-[#333]">상장일</span> 2025.11.23</p><p><span class="font-bold text-[#333]">시작가</span> 100원</p></div>
+            </div>
+        </div>
+    </main>
 
-    <section id="wallet" class="view">
-      <div class="card">
-        <div class="row"><span class="muted">보유 현금</span><strong id="cash">1,000,000원</strong></div>
-        <div class="row" style="margin-top:8px;"><span class="muted">보유 수량</span><strong id="stocks">0주</strong></div>
-        <div class="row" style="margin-top:8px;"><span class="muted">평균 단가</span><strong id="avg">0원</strong></div>
-      </div>
-      <div class="card">
-        <div class="row"><span class="muted">평가 손익</span><strong id="pl">0원 (0.00%)</strong></div>
-      </div>
-    </section>
+    <!-- 하단 매수/매도 버튼 -->
+    <div class="fixed bottom-0 left-0 right-0 bg-white px-4 py-3 trade-bar z-40 flex gap-3 pb-safe">
+        <button id="btn-sell" class="flex-1 bg-[#e8f3ff] text-[#3182f6] font-bold py-3.5 rounded-xl text-lg active:scale-95 transition-transform">매도</button>
+        <button id="btn-buy" class="flex-1 bg-[#f04452] text-white font-bold py-3.5 rounded-xl text-lg active:scale-95 transition-transform shadow-lg shadow-red-200">매수</button>
+    </div>
 
-    <section id="logs" class="view">
-      <div class="card" id="logList"><div class="muted">아직 거래 내역이 없습니다.</div></div>
-    </section>
+    <!-- 관리자 패널 -->
+    <div id="admin-panel" class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 z-50 hidden shadow-[0_-5px_20px_rgba(0,0,0,0.1)] slide-up max-h-[60vh] overflow-y-auto">
+        <div class="flex justify-between items-center mb-3"><div class="flex items-center gap-2"><h4 class="font-bold text-[#191f28] text-sm">🛠️ 관리자 모드</h4><span id="admin-timer" class="text-xs text-red-500 font-mono hidden bg-red-100 px-2 py-0.5 rounded-full">00:30</span></div></div>
+        <div class="grid grid-cols-2 gap-3 mb-3"><button id="btn-admin-surge" class="bg-red-600 text-white font-bold py-3 rounded-xl active:scale-95 transition-transform">🚀 급등 (10~20%)</button><button id="btn-admin-crash" class="bg-blue-600 text-white font-bold py-3 rounded-xl active:scale-95 transition-transform">📉 급락 (10~20%)</button></div>
+        <div class="grid grid-cols-2 gap-3 mb-3"><button id="btn-admin-up" class="bg-[#f04452] text-white font-bold py-3 rounded-xl active:scale-95 transition-transform">📈 상승 (30초)</button><button id="btn-admin-down" class="bg-[#3182f6] text-white font-bold py-3 rounded-xl active:scale-95 transition-transform">📉 하락 (30초)</button></div>
+        <div class="grid grid-cols-2 gap-3 mb-3"><button id="btn-market-resume" class="bg-green-500 text-white font-bold py-2 rounded-xl active:scale-95 transition-transform text-sm">🔔 장 재개</button><button id="btn-market-pause" class="bg-gray-700 text-white font-bold py-2 rounded-xl active:scale-95 transition-transform text-sm">⏸ 장 일시정지</button></div>
+        <div class="bg-gray-50 p-3 rounded-xl mb-3 border border-gray-200"><p class="text-xs font-bold text-gray-500 mb-2">💰 기준가 수동 설정</p><div class="flex gap-2"><input type="number" id="base-price-input" placeholder="가격" class="flex-1 bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none"><button id="btn-admin-base-price" class="bg-[#333] text-white font-bold px-4 rounded-lg text-sm">설정</button></div></div>
+        <div class="bg-gray-50 p-3 rounded-xl mb-3 border border-gray-200"><p class="text-xs font-bold text-gray-500 mb-2">💰 공용 입금</p><div class="flex gap-2"><input type="number" id="deposit-input" placeholder="금액" class="flex-1 bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none"><button id="btn-admin-deposit" class="bg-[#333] text-white font-bold px-4 rounded-lg text-sm">입금</button></div></div>
+        <button id="btn-logout" class="w-full bg-gray-100 text-gray-500 font-bold py-2 rounded-xl active:scale-95 transition-transform text-xs">로그아웃</button>
+    </div>
 
-    <footer class="trade-panel">
-      <div class="controls">
-        <input id="priceInput" type="number" min="1" step="1" placeholder="가격" />
-        <input id="qtyInput" type="number" min="1" step="1" value="1" />
-      </div>
-      <div class="btns">
-        <button id="sellBtn" class="action sell">매도</button>
-        <button id="buyBtn" class="action buy">매수</button>
-      </div>
-    </footer>
-  </main>
+    <script>
+        document.addEventListener('firebase-ready', () => {
+            const els = {
+                price: document.getElementById('current-price'), diffBox: document.getElementById('price-diff-box'),
+                diffLabel: document.getElementById('diff-label'), diffVal: document.getElementById('price-diff'), rate: document.getElementById('price-rate'),
+                chartContainer: document.getElementById('chart-container'), canvas: document.getElementById('chart-canvas'),
+                labelHigh: document.getElementById('label-high'), labelLow: document.getElementById('label-low'), valHigh: document.getElementById('val-high'), valLow: document.getElementById('val-low'),
+                baseLine: document.getElementById('base-line'), liveDot: document.getElementById('live-dot'),
+                marketMoodBadge: document.getElementById('market-mood-badge'), orderList: document.getElementById('order-book-list'),
+                viewChart: document.getElementById('view-chart'), viewOrder: document.getElementById('view-order'), viewInfo: document.getElementById('view-info'), viewWallet: document.getElementById('view-wallet'), viewDaily: document.getElementById('view-daily'),
+                tabChart: document.getElementById('tab-chart'), tabOrder: document.getElementById('tab-order'), tabInfo: document.getElementById('tab-info'), tabWallet: document.getElementById('tab-wallet'), tabDaily: document.getElementById('tab-daily'),
+                toastContainer: document.getElementById('toast-container'), loadingOverlay: document.getElementById('loading-overlay'), syncStatus: document.getElementById('sync-status'),
+                btnProfile: document.getElementById('btn-profile'), btnHome: document.getElementById('btn-home'),
+                loginModal: document.getElementById('login-modal'), inputPw: document.getElementById('admin-pw'),
+                btnLoginConfirm: document.getElementById('btn-login-confirm'), btnLoginCancel: document.getElementById('btn-login-cancel'),
+                adminPanel: document.getElementById('admin-panel'), btnAdminUp: document.getElementById('btn-admin-up'), btnAdminDown: document.getElementById('btn-admin-down'), btnLogout: document.getElementById('btn-logout'), adminTimer: document.getElementById('admin-timer'),
+                btnMarketResume: document.getElementById('btn-market-resume'), btnMarketPause: document.getElementById('btn-market-pause'),
+                btnAdminSurge: document.getElementById('btn-admin-surge'), btnAdminCrash: document.getElementById('btn-admin-crash'),
+                marketMsgContainer: document.getElementById('market-msg-container'), marketMsgBadge: document.getElementById('market-msg-badge'), chartStatus: document.getElementById('chart-status-text'),
+                myCash: document.getElementById('my-cash'), myStockCnt: document.getElementById('my-stock-cnt'), myAvgPrice: document.getElementById('my-avg-price'), myReturnRate: document.getElementById('my-return-rate'),
+                wAvgPriceBig: document.getElementById('w-avg-price-big'), wStockQty: document.getElementById('w-stock-qty'), wTotalVal: document.getElementById('w-total-val'), wPlInfo: document.getElementById('w-pl-info'), wPrincipal: document.getElementById('w-principal'), wCashRow: document.getElementById('w-cash-row'),
+                btnBuy: document.getElementById('btn-buy'), btnSell: document.getElementById('btn-sell'), 
+                depositInput: document.getElementById('deposit-input'), btnAdminDeposit: document.getElementById('btn-admin-deposit'),
+                basePriceInput: document.getElementById('base-price-input'), btnAdminBasePrice: document.getElementById('btn-admin-base-price'), 
+                historyList: document.getElementById('trade-history-list'), wHistoryList: document.getElementById('w-trade-history-list'), dailyQuoteList: document.getElementById('daily-quote-list'),
+                pendingList: document.getElementById('pending-order-list'), pendingCount: document.getElementById('pending-count'),
+                tradeModal: document.getElementById('trade-modal'), tradeTitle: document.getElementById('trade-modal-title'),
+                inputPrice: document.getElementById('input-price'), inputQty: document.getElementById('input-qty'),
+                btnPriceUp: document.getElementById('btn-price-up'), btnPriceDown: document.getElementById('btn-price-down'),
+                btnQtyUp: document.getElementById('btn-qty-up'), btnQtyDown: document.getElementById('btn-qty-down'),
+                btnTradeConfirm: document.getElementById('btn-trade-confirm'), btnTradeClose: document.getElementById('btn-trade-close'),
+                tradeTotalAmount: document.getElementById('trade-total-amount'),
+                btnChartLine: document.getElementById('btn-chart-line'), btnChartCandle: document.getElementById('btn-chart-candle'), configOverlay: document.getElementById('config-overlay'),
+                chartPulseDot: document.getElementById('chart-pulse-dot')
+            };
 
-  <script>
-    (() => {
-      const els = {
-        currentPrice: document.getElementById('currentPrice'),
-        priceDiff: document.getElementById('priceDiff'),
-        chartCanvas: document.getElementById('chartCanvas'),
-        marketState: document.getElementById('marketState'),
-        orderRows: document.getElementById('orderRows'),
-        cash: document.getElementById('cash'),
-        stocks: document.getElementById('stocks'),
-        avg: document.getElementById('avg'),
-        pl: document.getElementById('pl'),
-        logList: document.getElementById('logList'),
-        priceInput: document.getElementById('priceInput'),
-        qtyInput: document.getElementById('qtyInput'),
-        buyBtn: document.getElementById('buyBtn'),
-        sellBtn: document.getElementById('sellBtn')
-      };
+            if (!window.isFirebaseInitialized) { els.loadingOverlay.style.display = 'none'; els.configOverlay.classList.remove('hidden'); return; }
 
-      const state = {
-        basePrice: 1270,
-        currentPrice: 1270,
-        displayPrice: 1270,
-        targetPrice: 1270,
-        animTimer: null,
-        tickTimer: null,
-        history: [1270],
-        walletCash: 1000000,
-        walletStocks: 0,
-        walletAvgPrice: 0,
-        logs: []
-      };
+            const fmt = n => n.toLocaleString();
+            const fmtAmt = n => { if(n >= 100000000) return (n/100000000).toFixed(1) + "억"; if(n >= 10000) return (n/10000).toFixed(0) + "만"; return fmt(n); };
+            const showToast = (msg) => { const toast = document.createElement('div'); toast.className = 'toast-msg bg-[#333] text-white text-xs px-4 py-2 rounded-full shadow-lg mb-2 pointer-events-auto'; toast.innerText = msg; els.toastContainer.appendChild(toast); setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity 0.5s'; setTimeout(() => toast.remove(), 500); }, 2000); };
 
-      const fmt = (n) => Math.round(n).toLocaleString('ko-KR');
+            const getAnimatedUnit = (gap) => {
+                if (gap >= 1000) return 100;
+                if (gap >= 200) return 10;
+                return 5;
+            };
 
-      function getStepByGap(gap) {
-        if (gap >= 1000) return 100;
-        if (gap >= 200) return 10;
-        return 5;
-      }
+            const animateDisplayPriceToCurrent = () => {
+                state.priceAnimTarget = state.currentPrice;
+                if (state.displayPrice === state.priceAnimTarget) return;
+                if (state.priceAnimTimer) clearInterval(state.priceAnimTimer);
 
-      function animateDisplayPrice() {
-        state.targetPrice = state.currentPrice;
-        if (state.displayPrice === state.targetPrice) return;
-        if (state.animTimer) clearInterval(state.animTimer);
+                state.priceAnimTimer = setInterval(() => {
+                    const gap = state.priceAnimTarget - state.displayPrice;
+                    if (gap === 0) {
+                        clearInterval(state.priceAnimTimer);
+                        state.priceAnimTimer = null;
+                        return;
+                    }
 
-        state.animTimer = setInterval(() => {
-          const gap = state.targetPrice - state.displayPrice;
-          if (gap === 0) {
-            clearInterval(state.animTimer);
-            state.animTimer = null;
-            return;
-          }
-          const absGap = Math.abs(gap);
-          const step = Math.min(getStepByGap(absGap), absGap);
-          state.displayPrice += gap > 0 ? step : -step;
-          renderHeader();
-        }, 50);
-      }
+                    const absGap = Math.abs(gap);
+                    const unit = getAnimatedUnit(absGap);
+                    const step = Math.min(absGap, unit);
+                    state.displayPrice += (gap > 0 ? step : -step);
+                    updateUI();
+                }, 50);
+            };
 
-      function randomTick() {
-        const drift = Math.floor(Math.random() * 13) - 6;
-        const shock = Math.random() < 0.03 ? (Math.random() > 0.5 ? 80 : -80) : 0;
-        state.currentPrice = Math.max(1, state.currentPrice + drift + shock);
-        state.history.push(state.currentPrice);
-        if (state.history.length > 80) state.history.shift();
-        animateDisplayPrice();
-        renderOrderBook();
-        renderWallet();
-        drawChart();
-      }
+            // 🔹 초기값 (1271원 설정)
+            let state = {
+                currentPrice: 1271, basePrice: 1271, basePriceLabel: "시작가보다", history: [1271], tab: 'chart',
+                lastUpdated: 0, isConnected: false, adminTrend: null, adminTrendUntil: 0, manualPause: false, isAdmin: false,
+                chartOffset: 0, isDragging: false, lastX: 0, marketMood: 'neutral', nextMoodChange: 0,
+                walletCash: 0, walletStocks: 0, walletAvgPrice: 0, pendingOrders: [], tradeLogs: [], tradeType: 'buy',
+                dailyHistory: [], todayVolume: 0, todayTradeAmount: 0,
+                chartType: 'line', droppedTicks: 0, zoomScale: 1.0,
+                displayPrice: 1271, priceAnimTarget: 1271, priceAnimTimer: null
+            };
 
-      function renderHeader() {
-        els.currentPrice.textContent = fmt(state.displayPrice);
-        const diff = state.displayPrice - state.basePrice;
-        const rate = ((diff / state.basePrice) * 100).toFixed(2);
-        const sign = diff > 0 ? '+' : '';
-        els.priceDiff.textContent = `기준가 대비 ${sign}${fmt(diff)}원 (${sign}${rate}%)`;
-        els.priceDiff.className = `diff ${diff >= 0 ? 'up' : 'down'}`;
-      }
+            const MARKET_START_HOUR = 8;
+            const MARKET_START_MIN = 0;
+            const MARKET_END_HOUR = 23;
+            const MARKET_END_MIN = 30;
+            const TOTAL_TICKS = 94; 
 
-      function renderOrderBook() {
-        const rows = [];
-        for (let i = 5; i >= 1; i--) {
-          const p = state.currentPrice + i * 5;
-          rows.push({ ask: Math.floor(Math.random() * 900 + 100), price: p, bid: Math.floor(Math.random() * 900 + 100) });
-        }
-        els.orderRows.innerHTML = rows.map(r =>
-          `<div class="book-row"><span>${fmt(r.ask)}</span><span class="down">${fmt(r.price)}</span><span>${fmt(r.bid)}</span></div>`
-        ).join('');
-      }
+            const ctx = els.canvas.getContext('2d');
+            let size = { w: 0, h: 0 };
+            
+            const resize = () => { const rect = els.chartContainer.getBoundingClientRect(); if(rect.width === 0) return; els.canvas.width = rect.width * window.devicePixelRatio; els.canvas.height = rect.height * window.devicePixelRatio; ctx.scale(window.devicePixelRatio, window.devicePixelRatio); size = { w: rect.width, h: rect.height }; };
+            window.addEventListener('resize', resize);
+            const initAuth = async () => { try { await window.signInAnonymously(window.auth); } catch (e) { console.error(e); } };
+            initAuth();
+            window.onAuthStateChanged(window.auth, (user) => { if (user) { startSync(); startWalletSync(); startHistorySync(); startDailyHistorySync(); els.loadingOverlay.style.opacity = '0'; setTimeout(() => els.loadingOverlay.style.display = 'none', 500); resize(); } });
+            
+            const checkMarketStatus = () => { 
+                const now = new Date(); 
+                const currentTimeVal = now.getHours() * 60 + now.getMinutes(); 
+                const startVal = MARKET_START_HOUR * 60 + MARKET_START_MIN;
+                const endVal = MARKET_END_HOUR * 60 + MARKET_END_MIN; 
+                return (currentTimeVal >= startVal && currentTimeVal < endVal) && !state.manualPause; 
+            };
 
-      function addLog(type, msg) {
-        const time = new Date().toLocaleTimeString('ko-KR');
-        state.logs.unshift({ type, msg, time });
-        if (state.logs.length > 30) state.logs.pop();
-        renderLogs();
-      }
+            const calculatePriceChange = (price) => {
+                let change = 0; 
+                const randomChance = Math.random(); 
+                const isRandomEvent = randomChance < 0.017;
+                
+                if (isRandomEvent) { 
+                    const factor = 0.10 + (Math.random() * 0.10); 
+                    const isSurge = Math.random() > 0.5; 
+                    change = Math.floor(price * factor); 
+                    if (!isSurge) change = -change; 
+                } else { 
+                    if (state.adminTrend && state.adminTrendUntil > Date.now()) { 
+                        if (state.adminTrend === 'up') change = Math.floor(Math.random() * 6) + 2; 
+                        else change = Math.floor(Math.random() * -6) - 2; 
+                    } else { 
+                        if (state.marketMood === 'bull') change = Math.floor(Math.random() * 10) - 3; 
+                        else if (state.marketMood === 'bear') change = Math.floor(Math.random() * 10) - 6; 
+                        else change = Math.floor(Math.random() * 11) - 5; 
+                        if (change === 0) change = Math.random() > 0.5 ? 1 : -1; 
+                    } 
+                }
+                return change;
+            };
 
-      function renderLogs() {
-        if (!state.logs.length) {
-          els.logList.innerHTML = '<div class="muted">아직 거래 내역이 없습니다.</div>';
-          return;
-        }
-        els.logList.innerHTML = state.logs.map((l) =>
-          `<div class="log"><strong>[${l.type}]</strong> ${l.msg}<div class="muted">${l.time}</div></div>`
-        ).join('');
-      }
+            const startSync = () => {
+                const docRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'enjoy_ticker');
+                window.onSnapshot(docRef, async (snapshot) => {
+                    if (snapshot.exists()) {
+                        const data = snapshot.data();
+                        const prevConnected = state.isConnected;
+                        
+                        // 🔹 [1271원 강제 고정 및 리셋]
+                        const now = new Date();
+                        const marketStart = new Date();
+                        marketStart.setHours(MARKET_START_HOUR, MARKET_START_MIN, 0, 0);
+                        const lastDate = new Date(data.lastUpdated || 0);
 
-      function renderWallet() {
-        els.cash.textContent = `${fmt(state.walletCash)}원`;
-        els.stocks.textContent = `${fmt(state.walletStocks)}주`;
-        els.avg.textContent = `${fmt(state.walletAvgPrice)}원`;
+                        let needReset = false;
+                        if (lastDate.getTime() < marketStart.getTime() && now.getTime() >= marketStart.getTime()) {
+                             needReset = true;
+                        }
+                        // 시작가가 1271원이 아니면 리셋
+                        if (data.basePrice !== 1271) needReset = true;
 
-        const principal = state.walletAvgPrice * state.walletStocks;
-        const evalValue = state.currentPrice * state.walletStocks;
-        const diff = evalValue - principal;
-        const rate = principal > 0 ? ((diff / principal) * 100).toFixed(2) : '0.00';
-        const sign = diff > 0 ? '+' : '';
-        els.pl.textContent = `${sign}${fmt(diff)}원 (${sign}${rate}%)`;
-        els.pl.className = diff >= 0 ? 'up' : 'down';
-      }
+                        if (needReset) {
+                            const prevClose = 1271;
+                            
+                            state.basePrice = prevClose;
+                            state.currentPrice = prevClose;
+                            state.history = [prevClose];
+                            state.lastUpdated = marketStart.getTime();
+                            state.todayVolume = 0;
+                            state.todayTradeAmount = 0;
+                            
+                            try {
+                                await window.updateDoc(docRef, {
+                                    basePrice: prevClose,
+                                    basePriceLabel: "어제보다",
+                                    history: [prevClose],
+                                    lastUpdated: marketStart.getTime(),
+                                    todayVolume: 0,
+                                    todayTradeAmount: 0,
+                                    currentPrice: prevClose
+                                });
+                            } catch(e) {}
+                        } else {
+                            state.currentPrice = data.currentPrice;
+                            state.history = data.history || [];
+                            state.lastUpdated = data.lastUpdated;
+                            state.basePrice = data.basePrice;
+                            state.todayVolume = data.todayVolume;
+                            state.todayTradeAmount = data.todayTradeAmount;
+                        }
 
-      function trade(type) {
-        const price = Number(els.priceInput.value) || state.currentPrice;
-        const qty = Math.max(1, Number(els.qtyInput.value) || 1);
-        const cost = price * qty;
+                        await simulateMissingData(docRef);
 
-        if (type === 'buy') {
-          if (state.walletCash < cost) {
-            addLog('실패', `매수 실패: 잔액 부족 (${fmt(cost)}원 필요)`);
-            return;
-          }
-          const totalQty = state.walletStocks + qty;
-          const totalCost = state.walletAvgPrice * state.walletStocks + cost;
-          state.walletCash -= cost;
-          state.walletStocks = totalQty;
-          state.walletAvgPrice = totalQty > 0 ? Math.round(totalCost / totalQty) : 0;
-          addLog('매수', `${fmt(price)}원 × ${qty}주`);
-        } else {
-          if (state.walletStocks < qty) {
-            addLog('실패', `매도 실패: 보유 수량 부족 (${qty}주 필요)`);
-            return;
-          }
-          state.walletCash += cost;
-          state.walletStocks -= qty;
-          if (state.walletStocks === 0) state.walletAvgPrice = 0;
-          addLog('매도', `${fmt(price)}원 × ${qty}주`);
-        }
+                        state.adminTrend = data.adminTrend || null; 
+                        state.adminTrendUntil = data.adminTrendUntil || 0; 
+                        state.manualPause = data.manualPause || false;
+                        state.basePriceLabel = data.basePriceLabel || "시작가보다";
+                        state.marketMood = data.marketMood || 'neutral'; 
+                        state.nextMoodChange = data.nextMoodChange || 0;
 
-        renderWallet();
-      }
+                        state.isConnected = true; 
+                        if (!prevConnected) { state.displayPrice = state.currentPrice; state.priceAnimTarget = state.currentPrice; } else { animateDisplayPriceToCurrent(); }
+                        els.syncStatus.classList.remove('bg-gray-300', 'bg-red-500'); 
+                        els.syncStatus.classList.add('bg-green-500');
+                        
+                        updateUI(); drawChart(); updateWalletUI(); updateMoodUI(); checkPendingOrders(state.currentPrice);
+                    } else initializeData(docRef);
+                });
+                
+                setInterval(async () => {
+                    if (!state.isConnected) return; 
+                    const isMarketOpen = checkMarketStatus();
+                    const now = new Date();
+                    const currentTimeVal = now.getHours() * 60 + now.getMinutes();
 
-      function initTabs() {
-        const buttons = [...document.querySelectorAll('.tab-btn')];
-        buttons.forEach(btn => {
-          btn.addEventListener('click', () => {
-            buttons.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-            document.getElementById(btn.dataset.tab).classList.add('active');
-          });
+                    if (currentTimeVal >= (MARKET_END_HOUR * 60 + MARKET_END_MIN)) {
+                        const todayStr = `${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,'0')}.${String(now.getDate()).padStart(2,'0')}`;
+                        const lastRecord = state.dailyHistory.length > 0 ? state.dailyHistory[0] : null;
+                        if (!lastRecord || lastRecord.date !== todayStr) {
+                            await recordDailyHistory(now, state.currentPrice, state.basePrice, state.todayVolume, state.todayTradeAmount);
+                        }
+                    }
+
+                    if (isMarketOpen) {
+                        if (Date.now() - state.lastUpdated > 600000) {
+                            await generateNextTick(docRef);
+                        }
+                    }
+                }, 1000);
+                setInterval(() => { if (state.isAdmin) updateUI(); }, 500);
+            };
+
+            const simulateMissingData = async (docRef) => {
+                const now = new Date();
+                const marketStart = new Date(now);
+                marketStart.setHours(MARKET_START_HOUR, MARKET_START_MIN, 0, 0);
+                const marketEnd = new Date(now);
+                marketEnd.setHours(MARKET_END_HOUR, MARKET_END_MIN, 0, 0);
+
+                if (now.getTime() < marketStart.getTime()) return;
+
+                let currentHistory = [...state.history];
+                let currentPrice = state.currentPrice;
+
+                const timeCap = Math.min(now.getTime(), marketEnd.getTime());
+                const diffMs = timeCap - marketStart.getTime();
+                const expectedCount = Math.floor(diffMs / 600000) + 1;
+                
+                const missingTicks = expectedCount - currentHistory.length;
+
+                if (missingTicks > 0) {
+                    let simVol = state.todayVolume;
+                    let simAmt = state.todayTradeAmount;
+
+                    for (let i = 0; i < missingTicks; i++) {
+                        const change = calculatePriceChange(currentPrice);
+                        currentPrice += change;
+                        if (currentPrice < 1) currentPrice = 1;
+                        currentHistory.push(currentPrice);
+                        
+                        const v = Math.floor(Math.random() * 500) + 10;
+                        simVol += v;
+                        simAmt += (v * currentPrice);
+                    }
+
+                    state.history = currentHistory;
+                    state.currentPrice = currentPrice;
+                    state.lastUpdated = marketStart.getTime() + ((currentHistory.length - 1) * 600000);
+                    state.todayVolume = simVol;
+                    state.todayTradeAmount = simAmt;
+
+                    animateDisplayPriceToCurrent();
+                    updateUI(); 
+                    drawChart();
+
+                    try {
+                        await window.updateDoc(docRef, {
+                            currentPrice: state.currentPrice,
+                            history: state.history,
+                            lastUpdated: state.lastUpdated,
+                            todayVolume: state.todayVolume,
+                            todayTradeAmount: state.todayTradeAmount,
+                            basePrice: state.basePrice
+                        });
+                    } catch(e) { console.log("Sim update skip"); }
+                }
+            };
+
+            const generateNextTick = async (docRef) => {
+                let change = calculatePriceChange(state.currentPrice);
+                let nextPrice = state.currentPrice + change; 
+                if(nextPrice < 1) nextPrice = 1; 
+                
+                const simVol = Math.floor(Math.random() * 500) + 10; 
+                state.todayVolume += simVol; 
+                state.todayTradeAmount += (simVol * nextPrice); 
+                
+                const newHistory = [...state.history, nextPrice]; 
+                
+                let currentMood = state.marketMood; let nextChange = state.nextMoodChange;
+                if (Date.now() > nextChange) { 
+                    const candidates = ['bull', 'bear', 'neutral'].filter(m => m !== currentMood); 
+                    currentMood = candidates[Math.floor(Math.random() * candidates.length)]; 
+                    nextChange = Date.now() + (30 * 60 * 1000); 
+                }
+
+                let newTrend = state.adminTrend; let newTrendUntil = state.adminTrendUntil; 
+                if (state.adminTrend && Date.now() > state.adminTrendUntil) { newTrend = null; newTrendUntil = 0; }
+
+                state.currentPrice = nextPrice; state.history = newHistory; state.lastUpdated = Date.now(); 
+                state.marketMood = currentMood; state.nextMoodChange = nextChange;
+                
+                animateDisplayPriceToCurrent();
+                updateUI(); updateWalletUI(); 
+                
+                try { 
+                    await window.updateDoc(docRef, { 
+                        currentPrice: nextPrice, history: newHistory, lastUpdated: Date.now(), 
+                        adminTrend: newTrend, adminTrendUntil: newTrendUntil, 
+                        marketMood: currentMood, nextMoodChange: nextChange, 
+                        todayVolume: state.todayVolume, todayTradeAmount: state.todayTradeAmount 
+                    }); 
+                } catch (e) {}
+            };
+
+            const initializeData = async (docRef) => { try { await window.setDoc(docRef, { currentPrice: 1271, history: [1271], lastUpdated: Date.now(), adminTrend: null, adminTrendUntil: 0, manualPause: false, basePrice: 1271, basePriceLabel: "어제보다", marketMood: 'neutral', nextMoodChange: Date.now() + 300000, todayVolume: 0, todayTradeAmount: 0 }); } catch(e) {} };
+            
+            const parseDotDate = (dateStr) => {
+                if (!dateStr || typeof dateStr !== 'string') return 0;
+                const [year, month, day] = dateStr.split('.').map(Number);
+                if (!year || !month || !day) return 0;
+                return new Date(year, month - 1, day).getTime();
+            };
+
+            const startDailyHistorySync = () => { 
+                const dailyRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'daily_history'); 
+                window.onSnapshot(dailyRef, (snapshot) => { 
+                    if (snapshot.exists()) { 
+                        const history = snapshot.data().history || [];
+                        state.dailyHistory = [...history].sort((a, b) => parseDotDate(b.date) - parseDotDate(a.date)); 
+                        renderDailyQuotes(); 
+                    } else { 
+                        window.setDoc(dailyRef, { history: [] }); 
+                    } 
+                }); 
+            };
+
+            async function recordDailyHistory(dateObj, closePrice, basePrice, volume, tradeAmt) { 
+                const dailyRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'daily_history'); 
+                const dateStr = `${dateObj.getFullYear()}.${String(dateObj.getMonth()+1).padStart(2,'0')}.${String(dateObj.getDate()).padStart(2,'0')}`; 
+                const diff = closePrice - basePrice; 
+                const diffRate = basePrice > 0 ? ((diff / basePrice) * 100).toFixed(2) : "0.00"; 
+                const newItem = { date: dateStr, close: closePrice, diff: diff, rate: diffRate, vol: volume, amt: tradeAmt }; 
+                
+                const docSnap = await window.getDoc(dailyRef); 
+                let currentHistory = []; 
+                if (docSnap.exists()) { currentHistory = docSnap.data().history || []; } 
+                if (currentHistory.length > 0 && currentHistory[0].date === dateStr) return; 
+                
+                const newHistory = [newItem, ...currentHistory].slice(0, 365); 
+                await window.updateDoc(dailyRef, { history: newHistory }); 
+            };
+
+            const startWalletSync = () => { const walletDocRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'shared_wallet'); window.onSnapshot(walletDocRef, (snapshot) => { if (snapshot.exists()) { const data = snapshot.data(); state.walletCash = data.cash || 0; state.walletStocks = data.stocks || 0; state.walletAvgPrice = data.avgPrice || 0; state.pendingOrders = data.pendingOrders || []; updateWalletUI(); } else { window.setDoc(walletDocRef, { cash: 0, stocks: 0, avgPrice: 0, pendingOrders: [] }); } }); };
+            const startHistorySync = () => { const histDocRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'trade_history'); window.onSnapshot(histDocRef, (snapshot) => { if (snapshot.exists()) { state.tradeLogs = snapshot.data().logs || []; renderHistory(); } else { window.setDoc(histDocRef, { logs: [] }); } }); };
+            const addHistoryLog = async (type, detail) => { const histDocRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'trade_history'); const newLog = { type, detail, time: Date.now() }; const currentLogs = state.tradeLogs; const updatedLogs = [newLog, ...currentLogs].slice(0, 30); await window.updateDoc(histDocRef, { logs: updatedLogs }); };
+            
+            function renderDailyQuotes() { 
+                if (state.dailyHistory.length === 0) { els.dailyQuoteList.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-400">기록된 시세가 없습니다.</td></tr>'; return; } 
+                els.dailyQuoteList.innerHTML = state.dailyHistory.map(item => { 
+                    const isUp = item.diff > 0; const isZero = item.diff == 0; const colorClass = isUp ? 'text-up' : (isZero ? 'text-[#8b95a1]' : 'text-down'); const sign = isUp ? '+' : ''; 
+                    return `<tr><td>${item.date}</td><td class="font-bold ${colorClass}">${fmt(item.close)}</td><td class="${colorClass}">${sign}${item.rate}%</td><td>${fmt(item.vol)}</td><td style="padding-right: 0;">${fmtAmt(item.amt)}</td></tr>`; 
+                }).join(''); 
+            }
+
+            function renderHistory() { 
+                const logsHTML = state.tradeLogs.length === 0 ? '<div class="text-center py-4 text-xs text-gray-400">아직 거래 내역이 없습니다.</div>' : state.tradeLogs.map(log => { 
+                    const date = new Date(log.time); const timeStr = `${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}:${String(date.getSeconds()).padStart(2,'0')}`; 
+                    let tagClass = 'log-deposit'; let tagText = '알림'; 
+                    if (log.type === 'buy') { tagClass = 'log-buy'; tagText = '매수'; } else if (log.type === 'sell') { tagClass = 'log-sell'; tagText = '매도'; } else if (log.type === 'deposit') { tagClass = 'log-deposit'; tagText = '입금'; } 
+                    return `<div class="log-item"><div class="flex items-center"><span class="log-time">${timeStr}</span><span class="log-tag ${tagClass}">${tagText}</span><span class="text-[#333]">${log.detail}</span></div></div>`; 
+                }).join(''); 
+                els.historyList.innerHTML = logsHTML; els.wHistoryList.innerHTML = logsHTML; 
+            }
+
+            function updateWalletUI() { 
+                const txtCash = fmt(state.walletCash); const txtStocks = fmt(state.walletStocks); const txtAvg = fmt(Math.round(state.walletAvgPrice)); 
+                let returnRate = 0; let plValue = 0; let plRateStr = "0%"; let plClass = "text-gray-400"; 
+                if (state.walletStocks > 0 && state.walletAvgPrice > 0) { 
+                    const currentVal = state.currentPrice * state.walletStocks; const principal = state.walletAvgPrice * state.walletStocks; plValue = currentVal - principal; returnRate = (plValue / principal) * 100; plRateStr = `${returnRate > 0 ? '+' : ''}${returnRate.toFixed(1)}%`; plClass = returnRate >= 0 ? 'text-[#f04452]' : 'text-[#3182f6]'; 
+                } 
+                els.myCash.innerText = txtCash; els.myStockCnt.innerText = txtStocks; els.myAvgPrice.innerText = txtAvg; els.myReturnRate.innerText = plRateStr; els.myReturnRate.className = `text-xs font-bold ${plClass}`; 
+                els.wAvgPriceBig.innerText = txtAvg; els.wStockQty.innerText = txtStocks; 
+                const totalStockVal = state.walletStocks * state.currentPrice; els.wTotalVal.innerText = fmt(totalStockVal); 
+                const plSign = plValue > 0 ? '+' : ''; els.wPlInfo.innerHTML = `<span class="${plClass}">${plSign}${fmt(plValue)} (${plRateStr})</span>`; 
+                const principalVal = Math.round(state.walletAvgPrice * state.walletStocks); els.wPrincipal.innerText = fmt(principalVal); els.wCashRow.innerText = txtCash; 
+                renderPendingOrders(); 
+            }
+
+            function renderPendingOrders() { 
+                els.pendingCount.innerText = state.pendingOrders.length; 
+                if (state.pendingOrders.length === 0) { els.pendingList.innerHTML = '<div class="text-center py-4 text-xs text-gray-400">미체결 내역이 없습니다.</div>'; return; } 
+                els.pendingList.innerHTML = state.pendingOrders.map(order => { 
+                    const typeText = order.type === 'buy' ? '매수' : '매도'; const typeClass = order.type === 'buy' ? 'text-[#f04452]' : 'text-[#3182f6]'; const itemBg = order.type === 'buy' ? 'bg-[#fff4f4]' : 'bg-[#f4f9ff]'; 
+                    return `<div class="flex justify-between items-center p-3 rounded-xl ${itemBg}"><div class="flex items-center gap-2"><span class="font-bold text-xs ${typeClass}">${typeText}</span><span class="font-bold text-sm text-[#333]">${fmt(order.price)}원</span><span class="text-xs text-gray-500">${order.qty}주</span></div><button class="text-xs text-gray-400 underline p-1" onclick="window.cancelOrder('${order.id}')">취소</button></div>`; 
+                }).join(''); 
+            }
+
+            window.cancelOrder = async (orderId) => { 
+                const walletDocRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'shared_wallet'); 
+                await window.runTransaction(window.db, async (transaction) => { 
+                    const doc = await transaction.get(walletDocRef); if (!doc.exists()) return; const data = doc.data(); const pending = data.pendingOrders || []; const orderIndex = pending.findIndex(o => o.id === orderId); if (orderIndex === -1) return; const order = pending[orderIndex]; let newCash = data.cash || 0; let newStocks = data.stocks || 0; if (order.type === 'buy') { newCash += (order.price * order.qty); } else { newStocks += order.qty; } pending.splice(orderIndex, 1); transaction.update(walletDocRef, { cash: newCash, stocks: newStocks, pendingOrders: pending }); 
+                }); 
+                showToast("주문이 취소되었습니다."); 
+            };
+
+            function updateMoodUI() { 
+                els.marketMoodBadge.classList.remove('hidden', 'bg-red-100', 'text-red-600', 'bg-blue-100', 'text-blue-600', 'bg-gray-100', 'text-gray-600'); 
+                if (state.marketMood === 'bull') { els.marketMoodBadge.innerText = "호재"; els.marketMoodBadge.classList.add('bg-red-100', 'text-red-600'); } 
+                else if (state.marketMood === 'bear') { els.marketMoodBadge.innerText = "악재"; els.marketMoodBadge.classList.add('bg-blue-100', 'text-blue-600'); } 
+                else { els.marketMoodBadge.innerText = "평범"; els.marketMoodBadge.classList.add('bg-gray-100', 'text-gray-600'); } 
+            }
+
+            const openTradeModal = (type) => { state.tradeType = type; els.tradeModal.classList.remove('hidden'); els.tradeTitle.innerText = type === 'buy' ? '매수하기' : '매도하기'; els.tradeTitle.className = type === 'buy' ? 'text-xl font-bold text-[#f04452]' : 'text-xl font-bold text-[#3182f6]'; els.btnTradeConfirm.innerText = type === 'buy' ? '매수하기' : '매도하기'; els.btnTradeConfirm.className = `w-full py-4 rounded-xl font-bold text-white text-lg shadow-lg active:scale-95 transition-transform ${type === 'buy' ? 'bg-[#f04452]' : 'bg-[#3182f6]'}`; els.inputPrice.value = state.currentPrice; els.inputQty.value = 1; updateTradeTotal(); };
+            const updateTradeTotal = () => { const p = parseInt(els.inputPrice.value) || 0; const q = parseInt(els.inputQty.value) || 0; els.tradeTotalAmount.innerText = fmt(p * q); };
+            els.inputPrice.oninput = updateTradeTotal; els.inputQty.oninput = updateTradeTotal;
+            els.btnPriceUp.onclick = () => { els.inputPrice.value = parseInt(els.inputPrice.value) + 1; updateTradeTotal(); }; els.btnPriceDown.onclick = () => { els.inputPrice.value = Math.max(1, parseInt(els.inputPrice.value) - 1); updateTradeTotal(); }; els.btnQtyUp.onclick = () => { els.inputQty.value = parseInt(els.inputQty.value) + 1; updateTradeTotal(); }; els.btnQtyDown.onclick = () => { els.inputQty.value = Math.max(1, parseInt(els.inputQty.value) - 1); updateTradeTotal(); }; els.btnTradeClose.onclick = () => { els.tradeModal.classList.add('hidden'); };
+            els.btnTradeConfirm.onclick = async () => { const price = parseInt(els.inputPrice.value); const qty = parseInt(els.inputQty.value); if (price <= 0 || qty <= 0) { showToast("가격과 수량을 확인해주세요."); return; } const success = await placeOrder(state.tradeType, qty, price); if (success) { els.tradeModal.classList.add('hidden'); } };
+            const placeOrder = async (type, qty, price) => { const walletDocRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'shared_wallet'); let success = false; try { await window.runTransaction(window.db, async (transaction) => { const doc = await transaction.get(walletDocRef); if (!doc.exists()) throw "지갑 데이터 오류"; const data = doc.data(); let cash = data.cash || 0; let stocks = data.stocks || 0; let avgPrice = data.avgPrice || 0; let pending = data.pendingOrders || []; const isImmediateBuy = (type === 'buy' && price >= state.currentPrice); const isImmediateSell = (type === 'sell' && price <= state.currentPrice); if (isImmediateBuy || isImmediateSell) { const execPrice = state.currentPrice; const totalAmt = execPrice * qty; if (type === 'buy') { if (cash < totalAmt) throw "현금이 부족합니다."; cash -= totalAmt; const totalValue = (stocks * avgPrice) + totalAmt; stocks += qty; avgPrice = totalValue / stocks; addHistoryLog('buy', `${qty}주 매수 체결 (${fmt(execPrice)}원)`); showToast(`🎉 ${qty}주 매수 체결 완료!`); } else { if (stocks < qty) throw "주식이 부족합니다."; stocks -= qty; cash += totalAmt; if(stocks === 0) avgPrice = 0; addHistoryLog('sell', `${qty}주 매도 체결 (${fmt(execPrice)}원)`); showToast(`🎉 ${qty}주 매도 체결 완료!`); } } else { const totalAmt = price * qty; if (type === 'buy') { if (cash < totalAmt) throw "현금이 부족합니다 (예약)."; cash -= totalAmt; } else { if (stocks < qty) throw "주식이 부족합니다 (예약)."; stocks -= qty; } pending.push({ id: Date.now() + Math.random().toString(36).substr(2, 9), type, qty, price, time: Date.now() }); showToast(`📝 ${qty}주 ${type==='buy'?'매수':'매도'} 주문 예약됨`); } transaction.update(walletDocRef, { cash, stocks, avgPrice, pendingOrders: pending }); }); success = true; } catch(e) { showToast(typeof e === 'string' ? e : "거래 실패"); success = false; } return success; };
+            function checkPendingOrders(currentPrice) { 
+                if (state.pendingOrders.length === 0) return; 
+                const executable = state.pendingOrders.filter(o => (o.type === 'buy' && currentPrice <= o.price) || (o.type === 'sell' && currentPrice >= o.price)); 
+                if (executable.length === 0) return; 
+                const walletDocRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'shared_wallet'); 
+                window.runTransaction(window.db, async (transaction) => { 
+                    const doc = await transaction.get(walletDocRef); if (!doc.exists()) return; const data = doc.data(); let cash = data.cash || 0; let stocks = data.stocks || 0; let avgPrice = data.avgPrice || 0; let pending = data.pendingOrders || []; const toExecute = []; const remaining = []; 
+                    pending.forEach(o => { if ((o.type === 'buy' && state.currentPrice <= o.price) || (o.type === 'sell' && state.currentPrice >= o.price)) { toExecute.push(o); } else { remaining.push(o); } }); 
+                    if (toExecute.length === 0) return; 
+                    toExecute.forEach(o => { if (o.type === 'buy') { const totalValue = (stocks * avgPrice) + (o.price * o.qty); stocks += o.qty; avgPrice = totalValue / stocks; addHistoryLog('buy', `예약 매수 체결: ${o.qty}주 (${fmt(o.price)}원)`); } else { cash += (o.price * o.qty); if(stocks === 0) avgPrice = 0; addHistoryLog('sell', `예약 매도 체결: ${o.qty}주 (${fmt(o.price)}원)`); } }); 
+                    transaction.update(walletDocRef, { cash, stocks, avgPrice, pendingOrders: remaining }); 
+                }); 
+            }
+
+            function renderOrderBook() { 
+                if(state.tab !== 'order') return; const asks = []; const bids = []; const gap = Math.max(1, Math.floor(state.currentPrice * 0.005)); 
+                for(let i=5; i>=1; i--) { asks.push({ price: state.currentPrice + i * gap, vol: Math.floor(Math.random() * 50) + 1 }); } 
+                for(let i=1; i<=5; i++) { bids.push({ price: state.currentPrice - i * gap, vol: Math.floor(Math.random() * 50) + 1 }); } 
+                let html = ''; 
+                asks.forEach(item => { html += `<div class="order-row bg-ask"><div class="order-cell cell-ask-vol text-ask">${item.vol}</div><div class="order-cell cell-price text-ask">${fmt(item.price)}</div><div class="order-cell cell-bid-vol"></div><div class="vol-bar vol-bar-ask" style="width:${Math.min(item.vol*2, 100)}%"></div></div>`; }); 
+                bids.forEach(item => { html += `<div class="order-row bg-bid"><div class="order-cell cell-ask-vol"></div><div class="order-cell cell-price text-bid">${fmt(item.price)}</div><div class="order-cell cell-bid-vol text-bid">${item.vol}</div><div class="vol-bar vol-bar-bid" style="width:${Math.min(item.vol*2, 100)}%"></div></div>`; }); 
+                els.orderList.innerHTML = html; 
+            }
+
+            els.btnBuy.onclick = () => { if (!checkMarketStatus()) { showToast("장 마감 시간에는 거래할 수 없습니다. (08:00 ~ 23:30)"); return; } openTradeModal('buy'); };
+            els.btnSell.onclick = () => { if (!checkMarketStatus()) { showToast("장 마감 시간에는 거래할 수 없습니다. (08:00 ~ 23:30)"); return; } openTradeModal('sell'); };
+            els.btnAdminBasePrice.onclick = async () => { const price = parseInt(els.basePriceInput.value); if (isNaN(price) || price <= 0) { showToast("올바른 가격을 입력하세요."); return; } const docRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'enjoy_ticker'); try { await window.updateDoc(docRef, { basePrice: price, basePriceLabel: "어제보다" }); showToast(`기준가가 ${fmt(price)}원으로 설정되었습니다.`); els.basePriceInput.value = ''; } catch(e) { console.error(e); showToast("설정 실패"); } };
+            els.btnHome.onclick = () => { window.location.href = 'index.html'; };
+            els.btnProfile.onclick = () => { els.loginModal.classList.remove('hidden'); els.inputPw.value = ''; setTimeout(() => els.inputPw.focus(), 100); };
+            els.btnLoginCancel.onclick = () => { els.loginModal.classList.add('hidden'); };
+            els.btnLoginConfirm.onclick = () => { const pw = els.inputPw.value; if (pw === '0920') { state.isAdmin = true; els.loginModal.classList.add('hidden'); els.adminPanel.classList.remove('hidden'); showToast("관리자 권한 획득 🔓"); updateUI(); } else { showToast("비밀번호 불일치 ❌"); els.inputPw.value = ''; els.inputPw.focus(); } };
+            const triggerSharpMove = async (type) => { if (!state.isAdmin) return; const factor = 0.10 + (Math.random() * 0.10); let change = Math.floor(state.currentPrice * factor); let nextPrice; let logMsg; if (type === 'surge') { nextPrice = state.currentPrice + change; logMsg = `관리자: 급등 이벤트 발생 (+${(factor*100).toFixed(1)}%)`; } else { nextPrice = Math.max(1, state.currentPrice - change); logMsg = `관리자: 급락 이벤트 발생 (-${(factor*100).toFixed(1)}%)`; } const newHistory = [...state.history, nextPrice]; if (newHistory.length > 1000) newHistory.shift(); state.currentPrice = nextPrice; state.history = newHistory; state.lastUpdated = Date.now(); animateDisplayPriceToCurrent(); updateUI(); updateWalletUI(); checkPendingOrders(nextPrice); showToast(logMsg); const docRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'enjoy_ticker'); try { await window.updateDoc(docRef, { currentPrice: nextPrice, history: newHistory, lastUpdated: Date.now() }); } catch(e) { console.error(e); } };
+            els.btnAdminSurge.onclick = () => triggerSharpMove('surge'); els.btnAdminCrash.onclick = () => triggerSharpMove('crash');
+            const setAdminTrend = async (trend) => { if (!state.isAdmin) return; const duration = 30 * 1000; const until = Date.now() + duration; const mood = trend === 'up' ? 'bull' : 'bear'; state.marketMood = mood; state.adminTrend = trend; state.adminTrendUntil = until; updateUI(); updateMoodUI(); showToast(`관리자: ${trend === 'up' ? '상승' : '하락'}장 조작 시작 (30초)`); const docRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'enjoy_ticker'); try { await window.updateDoc(docRef, { adminTrend: trend, adminTrendUntil: until, marketMood: mood, nextMoodChange: until }); } catch(e) { console.error(e); } };
+            const setMarketStatus = async (pause) => { if (!state.isAdmin) return; state.manualPause = pause; updateUI(); showToast(`장 ${pause ? '일시정지' : '재개'} 완료`); const docRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'enjoy_ticker'); try { await window.updateDoc(docRef, { manualPause: pause }); } catch(e) { console.error(e); } };
+            els.btnAdminUp.onclick = () => setAdminTrend('up'); els.btnAdminDown.onclick = () => setAdminTrend('down'); els.btnMarketResume.onclick = () => setMarketStatus(false); els.btnMarketPause.onclick = () => setMarketStatus(true); els.btnLogout.onclick = () => { state.isAdmin = false; els.adminPanel.classList.add('hidden'); showToast("관리자 로그아웃"); updateUI(); };
+            els.btnAdminDeposit.onclick = async () => { const amount = parseInt(els.depositInput.value); if (isNaN(amount) || amount <= 0) { showToast("올바른 금액을 입력하세요."); return; } const walletDocRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'shared_wallet'); try { const snapshot = await window.getDoc(walletDocRef); const currentCash = snapshot.exists() ? (snapshot.data().cash || 0) : 0; await window.updateDoc(walletDocRef, { cash: currentCash + amount }); addHistoryLog('deposit', `배당금 입금 ${fmt(amount)}원`); showToast(`${fmt(amount)}원 공용 입금 완료!`); els.depositInput.value = ''; } catch(e) { console.error("Deposit Error", e); } };
+            
+            els.btnChartLine.onclick = () => { state.chartType = 'line'; els.btnChartLine.classList.add('active'); els.btnChartCandle.classList.remove('active'); drawChart(); };
+            els.btnChartCandle.onclick = () => { state.chartType = 'candle'; els.btnChartCandle.classList.add('active'); els.btnChartLine.classList.remove('active'); drawChart(); };
+
+            function drawChart() { 
+                if(state.tab !== 'chart') return; 
+                const { w, h } = size; if(w === 0) { resize(); return; } 
+                ctx.clearRect(0, 0, w, h); 
+                const fullHistory = state.history; if (fullHistory.length === 0) return; 
+                
+                let minVal = Math.min(...fullHistory); let maxVal = Math.max(...fullHistory); 
+                minVal = Math.min(minVal, state.basePrice); maxVal = Math.max(maxVal, state.basePrice); 
+                if (maxVal === minVal) { maxVal += 10; minVal -= 10; } else { const padding = (maxVal - minVal) * 0.1; maxVal += padding; minVal -= padding; } 
+                const range = maxVal - minVal; 
+                const baseY = h - ((state.basePrice - minVal) / range) * h; 
+                els.baseLine.style.top = `${(baseY / h) * 100}%`; els.baseLine.classList.remove('hidden'); 
+                
+                const xStep = (w - 40) / (TOTAL_TICKS - 1); 
+                let lastPoint = { x: 0, y: 0 }; 
+                
+                if (state.chartType === 'line') { 
+                    const lastVal = fullHistory[fullHistory.length - 1]; const isUp = lastVal >= state.basePrice; const color = isUp ? '#f04452' : '#3182f6'; 
+                    els.labelHigh.style.color = color; els.labelLow.style.color = color; els.liveDot.style.backgroundColor = color; 
+                    els.chartPulseDot.style.backgroundColor = color; els.chartPulseDot.querySelector('.pulse-ring').style.backgroundColor = color; 
+                    
+                    ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; 
+                    fullHistory.forEach((p, i) => { 
+                        const x = 20 + i * xStep; const y = h - ((p - minVal) / range) * h; 
+                        if(i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); 
+                        if (i === fullHistory.length - 1) { lastPoint = { x, y }; } 
+                    }); 
+                    ctx.stroke(); 
+                    
+                    if (fullHistory.length > 0) { 
+                        const lastX = 20 + (fullHistory.length - 1) * xStep; 
+                        ctx.lineTo(lastX, h); ctx.lineTo(20, h); ctx.closePath(); 
+                        const grad = ctx.createLinearGradient(0, 0, 0, h); 
+                        grad.addColorStop(0, isUp ? 'rgba(240, 68, 82, 0.05)' : 'rgba(49, 130, 246, 0.05)'); 
+                        grad.addColorStop(1, 'rgba(255, 255, 255, 0)'); 
+                        ctx.fillStyle = grad; ctx.fill(); 
+                        const lastY = h - ((lastVal - minVal) / range) * h; 
+                        ctx.beginPath(); ctx.fillStyle = color; ctx.arc(lastX, lastY, 4, 0, Math.PI * 2); ctx.fill(); 
+                    } 
+                    
+                    if (checkMarketStatus()) { els.chartPulseDot.classList.remove('hidden'); els.chartPulseDot.style.left = `${lastPoint.x}px`; els.chartPulseDot.style.top = `${lastPoint.y}px`; } else { els.chartPulseDot.classList.add('hidden'); } 
+                    
+                    const maxValData = Math.max(...fullHistory); const minValData = Math.min(...fullHistory); 
+                    els.valHigh.innerText = Math.round(maxValData); els.valLow.innerText = Math.round(minValData); 
+                    const maxIdx = fullHistory.lastIndexOf(maxValData); const minIdx = fullHistory.lastIndexOf(minValData); 
+                    const maxPos = { x: 20 + maxIdx * xStep, y: h - ((maxValData - minVal) / range) * h }; 
+                    const minPos = { x: 20 + minIdx * xStep, y: h - ((minValData - minVal) / range) * h }; 
+                    const labelX_Max = Math.min(Math.max(maxPos.x, 30), w - 30); const labelX_Min = Math.min(Math.max(minPos.x, 30), w - 30); 
+                    els.labelHigh.style.opacity = 1; els.labelHigh.style.left = `${labelX_Max}px`; els.labelHigh.style.top = `${maxPos.y - 25}px`; 
+                    els.labelLow.style.opacity = 1; els.labelLow.style.left = `${labelX_Min}px`; els.labelLow.style.top = `${minPos.y + 10}px`; 
+                    [maxPos, minPos].forEach(pos => { ctx.beginPath(); ctx.fillStyle = 'white'; ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.arc(pos.x, pos.y, 3, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }); 
+                } else { 
+                    const candleWidth = xStep * 0.6; els.chartPulseDot.classList.add('hidden'); 
+                    fullHistory.forEach((p, i) => { 
+                        const prev = i > 0 ? fullHistory[i-1] : state.basePrice; const x = 20 + i * xStep; 
+                        const yClose = h - ((p - minVal) / range) * h; const yOpen = h - ((prev - minVal) / range) * h; 
+                        const isUp = p >= prev; const color = isUp ? '#f04452' : '#3182f6'; ctx.fillStyle = color; 
+                        let bodyHeight = Math.abs(yClose - yOpen); if (bodyHeight < 1) bodyHeight = 1; const bodyY = Math.min(yOpen, yClose); 
+                        ctx.fillRect(x - candleWidth/2, bodyY, candleWidth, bodyHeight); 
+                        ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 1; 
+                        const highY = Math.min(yOpen, yClose) - (Math.random() * 5); const lowY = Math.max(yOpen, yClose) + (Math.random() * 5); 
+                        ctx.moveTo(x, highY); ctx.lineTo(x, lowY); ctx.stroke(); 
+                    }); 
+                } 
+            }
+
+            function updateUI() { 
+                els.price.innerText = fmt(state.displayPrice); els.diffLabel.innerText = state.basePriceLabel; 
+                const diff = state.displayPrice - state.basePrice; 
+                const rate = state.basePrice > 0 ? ((diff / state.basePrice) * 100).toFixed(1) : '0.0'; 
+                const sign = diff > 0 ? '+' : ''; const isUp = diff >= 0; 
+                els.diffVal.innerText = `${sign}${diff}원`; els.rate.innerText = `(${sign}${rate}%)`; 
+                els.diffBox.className = `flex items-center gap-1 ${isUp ? 'text-up' : 'text-down'}`; 
+                const isMarketOpen = checkMarketStatus(); 
+                if (!isMarketOpen) { els.marketMsgContainer.classList.remove('hidden'); els.liveDot.classList.remove('animate-pulse'); els.liveDot.classList.replace('bg-[#3182f6]', 'bg-gray-400'); els.chartStatus.innerText = "일시정지됨"; if (state.manualPause) els.marketMsgBadge.innerText = "⏸ 장 일시정지됨"; else els.marketMsgBadge.innerText = "🌙 장 마감 (08:00 ~ 23:30)"; } else { els.marketMsgContainer.classList.add('hidden'); els.liveDot.classList.add('animate-pulse'); els.liveDot.classList.replace('bg-gray-400', 'bg-[#3182f6]'); els.chartStatus.innerText = "장 운영중 (08:00~23:30)"; } 
+                if (state.isAdmin && state.adminTrend && state.adminTrendUntil > Date.now()) { const timeLeft = Math.ceil((state.adminTrendUntil - Date.now()) / 1000); if (timeLeft > 0) { const mins = Math.floor(timeLeft / 60); const secs = timeLeft % 60; els.adminTimer.innerText = `${mins}:${secs < 10 ? '0'+secs : secs}`; els.adminTimer.classList.remove('hidden'); } else els.adminTimer.classList.add('hidden'); } else els.adminTimer.classList.add('hidden'); 
+                if(state.tab === 'chart') drawChart(); else if(state.tab === 'order') renderOrderBook(); 
+            }
+
+            function switchTab(tabName) { 
+                state.tab = tabName; 
+                [els.tabChart, els.tabOrder, els.tabDaily, els.tabWallet, els.tabInfo].forEach(btn => btn.classList.remove('active')); 
+                if(tabName === 'chart') els.tabChart.classList.add('active'); 
+                if(tabName === 'order') els.tabOrder.classList.add('active'); 
+                if(tabName === 'daily') els.tabDaily.classList.add('active'); 
+                if(tabName === 'wallet') els.tabWallet.classList.add('active'); 
+                if(tabName === 'info') els.tabInfo.classList.add('active'); 
+                els.viewChart.classList.add('hidden'); els.viewOrder.classList.add('hidden'); els.viewDaily.classList.add('hidden'); els.viewWallet.classList.add('hidden'); els.viewInfo.classList.add('hidden'); 
+                if(tabName === 'chart') { els.viewChart.classList.remove('hidden'); resize(); drawChart(); } 
+                else if(tabName === 'order') { els.viewOrder.classList.remove('hidden'); els.viewOrder.classList.add('flex'); renderOrderBook(); } 
+                else if(tabName === 'daily') { els.viewDaily.classList.remove('hidden'); els.viewDaily.classList.add('flex'); renderDailyQuotes(); } 
+                else if(tabName === 'wallet') { els.viewWallet.classList.remove('hidden'); els.viewWallet.classList.add('flex'); } 
+                else { els.viewInfo.classList.remove('hidden'); els.viewInfo.classList.add('flex'); } 
+            }
+            els.tabChart.onclick = () => switchTab('chart'); els.tabOrder.onclick = () => switchTab('order'); els.tabDaily.onclick = () => switchTab('daily'); els.tabWallet.onclick = () => switchTab('wallet'); els.tabInfo.onclick = () => switchTab('info');
         });
-      }
-
-      function drawChart() {
-        const canvas = els.chartCanvas;
-        const rect = canvas.getBoundingClientRect();
-        canvas.width = rect.width * devicePixelRatio;
-        canvas.height = rect.height * devicePixelRatio;
-        const ctx = canvas.getContext('2d');
-        ctx.scale(devicePixelRatio, devicePixelRatio);
-
-        const w = rect.width;
-        const h = rect.height;
-        ctx.clearRect(0, 0, w, h);
-
-        const prices = state.history;
-        const min = Math.min(...prices) - 10;
-        const max = Math.max(...prices) + 10;
-        const range = Math.max(1, max - min);
-
-        ctx.strokeStyle = '#dfe7f1';
-        ctx.lineWidth = 1;
-        [0.25, 0.5, 0.75].forEach(r => {
-          const y = h * r;
-          ctx.beginPath();
-          ctx.moveTo(0, y);
-          ctx.lineTo(w, y);
-          ctx.stroke();
-        });
-
-        ctx.beginPath();
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = state.currentPrice >= state.basePrice ? '#e53935' : '#1e88e5';
-        prices.forEach((p, i) => {
-          const x = (w * i) / Math.max(1, prices.length - 1);
-          const y = h - ((p - min) / range) * h;
-          if (i === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
-        });
-        ctx.stroke();
-      }
-
-      function init() {
-        initTabs();
-        renderHeader();
-        renderOrderBook();
-        renderWallet();
-        renderLogs();
-        drawChart();
-
-        els.priceInput.value = state.currentPrice;
-        els.buyBtn.addEventListener('click', () => trade('buy'));
-        els.sellBtn.addEventListener('click', () => trade('sell'));
-
-        state.tickTimer = setInterval(() => {
-          randomTick();
-          els.priceInput.value = state.currentPrice;
-        }, 1000);
-
-        window.addEventListener('resize', drawChart);
-      }
-
-      init();
-    })();
-  </script>
+    </script>
 </body>
 </html>
