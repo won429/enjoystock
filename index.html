@@ -461,7 +461,7 @@
             const ctx = els.canvas.getContext('2d');
             let size = { w: 0, h: 0 };
             
-            const resize = () => { const rect = els.chartContainer.getBoundingClientRect(); if(rect.width === 0) return; els.canvas.width = rect.width * window.devicePixelRatio; els.canvas.height = rect.height * window.devicePixelRatio; ctx.scale(window.devicePixelRatio, window.devicePixelRatio); size = { w: rect.width, h: rect.height }; };
+            const resize = () => { const rect = els.chartContainer.getBoundingClientRect(); if(rect.width === 0) return; const dpr = window.devicePixelRatio || 1; els.canvas.width = rect.width * dpr; els.canvas.height = rect.height * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0); size = { w: rect.width, h: rect.height }; };
             window.addEventListener('resize', resize);
             const initAuth = async () => { try { await window.signInAnonymously(window.auth); } catch (e) { console.error(e); } };
             initAuth();
@@ -541,12 +541,12 @@
                                 });
                             } catch(e) {}
                         } else {
-                            state.currentPrice = data.currentPrice;
+                            state.currentPrice = Number.isFinite(data.currentPrice) ? data.currentPrice : 1271;
                             state.history = data.history || [];
                             state.lastUpdated = data.lastUpdated;
                             state.basePrice = data.basePrice;
-                            state.todayVolume = data.todayVolume;
-                            state.todayTradeAmount = data.todayTradeAmount;
+                            state.todayVolume = Number.isFinite(data.todayVolume) ? data.todayVolume : 0;
+                            state.todayTradeAmount = Number.isFinite(data.todayTradeAmount) ? data.todayTradeAmount : 0;
                         }
 
                         await simulateMissingData(docRef);
