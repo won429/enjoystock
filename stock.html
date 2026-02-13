@@ -634,7 +634,7 @@
                 }
 
                 let newTrend = state.adminTrend; let newTrendUntil = state.adminTrendUntil; 
-                if (state.adminTrend && Date.now() > state.adminTrendUntil) { newTrend = null; }
+                if (state.adminTrend && Date.now() > state.adminTrendUntil) { newTrend = null; newTrendUntil = 0; }
 
                 state.currentPrice = nextPrice; state.history = newHistory; state.lastUpdated = Date.now(); 
                 state.marketMood = currentMood; state.nextMoodChange = nextChange;
@@ -653,31 +653,19 @@
 
             const initializeData = async (docRef) => { try { await window.setDoc(docRef, { currentPrice: 1271, history: [1271], lastUpdated: Date.now(), adminTrend: null, adminTrendUntil: 0, manualPause: false, basePrice: 1271, basePriceLabel: "어제보다", marketMood: 'neutral', nextMoodChange: Date.now() + 300000, todayVolume: 0, todayTradeAmount: 0 }); } catch(e) {} };
             
-            // 🔹 12월 3일 데이터 강제 복구 로직 (1271원)
+            const parseDotDate = (dateStr) => {
+                if (!dateStr || typeof dateStr !== 'string') return 0;
+                const [year, month, day] = dateStr.split('.').map(Number);
+                if (!year || !month || !day) return 0;
+                return new Date(year, month - 1, day).getTime();
+            };
+
             const startDailyHistorySync = () => { 
                 const dailyRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'daily_history'); 
-                window.onSnapshot(dailyRef, async (snapshot) => { 
+                window.onSnapshot(dailyRef, (snapshot) => { 
                     if (snapshot.exists()) { 
-                        let history = snapshot.data().history || [];
-                        
-                        // 🚨 12.03 누락 데이터 강제 주입
-                        const hasDec3 = history.some(h => h.date === '2025.12.03');
-                        if (!hasDec3) {
-                            const fixedData = {
-                                date: '2025.12.03',
-                                close: 1271, // 3일 종가
-                                diff: 29,    // 1271 - 1242 = 29
-                                rate: "2.33", // 2.33%
-                                vol: 12050,  // 임의값
-                                amt: 15315550 
-                            };
-                            history = [fixedData, ...history]; 
-                            history.sort((a,b) => new Date(b.date) - new Date(a.date));
-                            
-                            await window.updateDoc(dailyRef, { history: history });
-                        }
-
-                        state.dailyHistory = history; 
+                        const history = snapshot.data().history || [];
+                        state.dailyHistory = [...history].sort((a, b) => parseDotDate(b.date) - parseDotDate(a.date)); 
                         renderDailyQuotes(); 
                     } else { 
                         window.setDoc(dailyRef, { history: [] }); 
@@ -708,7 +696,7 @@
             function renderDailyQuotes() { 
                 if (state.dailyHistory.length === 0) { els.dailyQuoteList.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-400">기록된 시세가 없습니다.</td></tr>'; return; } 
                 els.dailyQuoteList.innerHTML = state.dailyHistory.map(item => { 
-                    const isUp = item.diff > 0; const isZero = item.diff == 0; const colorClass = isUp ? 'text-up' : (isZero ? 'text-gray' : 'text-down'); const sign = isUp ? '+' : ''; 
+                    const isUp = item.diff > 0; const isZero = item.diff == 0; const colorClass = isUp ? 'text-up' : (isZero ? 'text-[#8b95a1]' : 'text-down'); const sign = isUp ? '+' : ''; 
                     return `<tr><td>${item.date}</td><td class="font-bold ${colorClass}">${fmt(item.close)}</td><td class="${colorClass}">${sign}${item.rate}%</td><td>${fmt(item.vol)}</td><td style="padding-right: 0;">${fmtAmt(item.amt)}</td></tr>`; 
                 }).join(''); 
             }
@@ -877,7 +865,7 @@
             function updateUI() { 
                 els.price.innerText = fmt(state.currentPrice); els.diffLabel.innerText = state.basePriceLabel; 
                 const diff = state.currentPrice - state.basePrice; 
-                const rate = ((diff / state.basePrice) * 100).toFixed(1); 
+                const rate = state.basePrice > 0 ? ((diff / state.basePrice) * 100).toFixed(1) : '0.0'; 
                 const sign = diff > 0 ? '+' : ''; const isUp = diff >= 0; 
                 els.diffVal.innerText = `${sign}${diff}원`; els.rate.innerText = `(${sign}${rate}%)`; 
                 els.diffBox.className = `flex items-center gap-1 ${isUp ? 'text-up' : 'text-down'}`; 
