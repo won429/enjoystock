@@ -414,15 +414,46 @@
             const fmtAmt = n => { if(n >= 100000000) return (n/100000000).toFixed(1) + "억"; if(n >= 10000) return (n/10000).toFixed(0) + "만"; return fmt(n); };
             const showToast = (msg) => { const toast = document.createElement('div'); toast.className = 'toast-msg bg-[#333] text-white text-xs px-4 py-2 rounded-full shadow-lg mb-2 pointer-events-auto'; toast.innerText = msg; els.toastContainer.appendChild(toast); setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity 0.5s'; setTimeout(() => toast.remove(), 500); }, 2000); };
 
+            const getAnimatedUnit = (gap) => {
+                if (gap >= 1000) return 100;
+                if (gap >= 200) return 10;
+                return 5;
+            };
+
+            const animateDisplayPriceToCurrent = () => {
+                state.priceAnimTarget = state.currentPrice;
+                if (state.displayPrice === state.priceAnimTarget) return;
+                if (state.priceAnimTimer) clearInterval(state.priceAnimTimer);
+
+                state.priceAnimTimer = setInterval(() => {
+                    const gap = state.priceAnimTarget - state.displayPrice;
+                    if (gap === 0) {
+                        clearInterval(state.priceAnimTimer);
+                        state.priceAnimTimer = null;
+                        return;
+                    }
+
+                    const absGap = Math.abs(gap);
+                    const unit = getAnimatedUnit(absGap);
+                    const step = Math.min(absGap, unit);
+                    state.displayPrice += (gap > 0 ? step : -step);
+                    updateUI();
+                }, 50);
+            };
+
             // 🔹 초기값 (1271원 설정)
             let state = {
                 currentPrice: 1271, basePrice: 1271, basePriceLabel: "시작가보다", history: [1271], tab: 'chart',
                 lastUpdated: 0, isConnected: false, adminTrend: null, adminTrendUntil: 0, manualPause: false, isAdmin: false,
                 chartOffset: 0, isDragging: false, lastX: 0, marketMood: 'neutral', nextMoodChange: 0,
-                walletCash: 0, walletStocks: 0, walletAvgPrice: 0, pendingOrders: [], tradeLogs: [], tradeType: 'line',
+                walletCash: 0, walletStocks: 0, walletAvgPrice: 0, pendingOrders: [], tradeLogs: [], tradeType: 'buy',
                 dailyHistory: [], todayVolume: 0, todayTradeAmount: 0,
-                chartType: 'line', droppedTicks: 0, zoomScale: 1.0
+                chartType: 'line', droppedTicks: 0, zoomScale: 1.0,
+                displayPrice: 1271, priceAnimTarget: 1271, priceAnimTimer: null
             };
+            let isSyncInitialized = false;
+            let marketTickTimer = null;
+            let isCatchupRunning = false;
 
             const MARKET_START_HOUR = 8;
             const MARKET_START_MIN = 0;
@@ -433,7 +464,7 @@
             const ctx = els.canvas.getContext('2d');
             let size = { w: 0, h: 0 };
             
-            const resize = () => { const rect = els.chartContainer.getBoundingClientRect(); if(rect.width === 0) return; els.canvas.width = rect.width * window.devicePixelRatio; els.canvas.height = rect.height * window.devicePixelRatio; ctx.scale(window.devicePixelRatio, window.devicePixelRatio); size = { w: rect.width, h: rect.height }; };
+            const resize = () => { const rect = els.chartContainer.getBoundingClientRect(); if(rect.width === 0) return; const dpr = window.devicePixelRatio || 1; els.canvas.width = rect.width * dpr; els.canvas.height = rect.height * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0); size = { w: rect.width, h: rect.height }; };
             window.addEventListener('resize', resize);
             const initAuth = async () => { try { await window.signInAnonymously(window.auth); } catch (e) { console.error(e); } };
             initAuth();
@@ -445,6 +476,15 @@
                 const startVal = MARKET_START_HOUR * 60 + MARKET_START_MIN;
                 const endVal = MARKET_END_HOUR * 60 + MARKET_END_MIN; 
                 return (currentTimeVal >= startVal && currentTimeVal < endVal) && !state.manualPause; 
+            };
+
+            const sanitizeHistory = (history, fallbackPrice = 1271) => {
+                if (!Array.isArray(history)) return [fallbackPrice];
+                const parsed = history
+                    .map(v => Number(v))
+                    .filter(v => Number.isFinite(v) && v > 0)
+                    .slice(-1000);
+                return parsed.length > 0 ? parsed : [fallbackPrice];
             };
 
             const calculatePriceChange = (price) => {
@@ -472,10 +512,30 @@
             };
 
             const startSync = () => {
+                if (isSyncInitialized) return;
+                isSyncInitialized = true;
                 const docRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'enjoy_ticker');
+
+                const runCatchup = async () => {
+                    if (isCatchupRunning) return;
+                    isCatchupRunning = true;
+                    try {
+                        await simulateMissingData(docRef);
+                    } finally {
+                        isCatchupRunning = false;
+                    }
+                };
+
+                document.addEventListener('visibilitychange', () => {
+                    if (document.visibilityState === 'visible' && state.isConnected) {
+                        runCatchup().catch(() => {});
+                    }
+                });
+
                 window.onSnapshot(docRef, async (snapshot) => {
                     if (snapshot.exists()) {
                         const data = snapshot.data();
+                        const prevConnected = state.isConnected;
                         
                         // 🔹 [1271원 강제 고정 및 리셋]
                         const now = new Date();
@@ -512,15 +572,15 @@
                                 });
                             } catch(e) {}
                         } else {
-                            state.currentPrice = data.currentPrice;
-                            state.history = data.history || [];
-                            state.lastUpdated = data.lastUpdated;
-                            state.basePrice = data.basePrice;
-                            state.todayVolume = data.todayVolume;
-                            state.todayTradeAmount = data.todayTradeAmount;
+                            state.currentPrice = Number.isFinite(data.currentPrice) ? data.currentPrice : 1271;
+                            state.history = sanitizeHistory(data.history, state.currentPrice);
+                            state.lastUpdated = Number.isFinite(data.lastUpdated) ? data.lastUpdated : Date.now();
+                            state.basePrice = Number.isFinite(data.basePrice) && data.basePrice > 0 ? data.basePrice : 1271;
+                            state.todayVolume = Number.isFinite(data.todayVolume) ? data.todayVolume : 0;
+                            state.todayTradeAmount = Number.isFinite(data.todayTradeAmount) ? data.todayTradeAmount : 0;
                         }
 
-                        await simulateMissingData(docRef);
+                        await runCatchup();
 
                         state.adminTrend = data.adminTrend || null; 
                         state.adminTrendUntil = data.adminTrendUntil || 0; 
@@ -530,6 +590,7 @@
                         state.nextMoodChange = data.nextMoodChange || 0;
 
                         state.isConnected = true; 
+                        if (!prevConnected) { state.displayPrice = state.currentPrice; state.priceAnimTarget = state.currentPrice; } else { animateDisplayPriceToCurrent(); }
                         els.syncStatus.classList.remove('bg-gray-300', 'bg-red-500'); 
                         els.syncStatus.classList.add('bg-green-500');
                         
@@ -537,7 +598,7 @@
                     } else initializeData(docRef);
                 });
                 
-                setInterval(async () => {
+                marketTickTimer = setInterval(async () => {
                     if (!state.isConnected) return; 
                     const isMarketOpen = checkMarketStatus();
                     const now = new Date();
@@ -553,7 +614,7 @@
 
                     if (isMarketOpen) {
                         if (Date.now() - state.lastUpdated > 600000) {
-                            await generateNextTick(docRef);
+                            await runCatchup();
                         }
                     }
                 }, 1000);
@@ -599,6 +660,7 @@
                     state.todayVolume = simVol;
                     state.todayTradeAmount = simAmt;
 
+                    animateDisplayPriceToCurrent();
                     updateUI(); 
                     drawChart();
 
@@ -634,11 +696,12 @@
                 }
 
                 let newTrend = state.adminTrend; let newTrendUntil = state.adminTrendUntil; 
-                if (state.adminTrend && Date.now() > state.adminTrendUntil) { newTrend = null; }
+                if (state.adminTrend && Date.now() > state.adminTrendUntil) { newTrend = null; newTrendUntil = 0; }
 
                 state.currentPrice = nextPrice; state.history = newHistory; state.lastUpdated = Date.now(); 
                 state.marketMood = currentMood; state.nextMoodChange = nextChange;
                 
+                animateDisplayPriceToCurrent();
                 updateUI(); updateWalletUI(); 
                 
                 try { 
@@ -653,31 +716,19 @@
 
             const initializeData = async (docRef) => { try { await window.setDoc(docRef, { currentPrice: 1271, history: [1271], lastUpdated: Date.now(), adminTrend: null, adminTrendUntil: 0, manualPause: false, basePrice: 1271, basePriceLabel: "어제보다", marketMood: 'neutral', nextMoodChange: Date.now() + 300000, todayVolume: 0, todayTradeAmount: 0 }); } catch(e) {} };
             
-            // 🔹 12월 3일 데이터 강제 복구 로직 (1271원)
+            const parseDotDate = (dateStr) => {
+                if (!dateStr || typeof dateStr !== 'string') return 0;
+                const [year, month, day] = dateStr.split('.').map(Number);
+                if (!year || !month || !day) return 0;
+                return new Date(year, month - 1, day).getTime();
+            };
+
             const startDailyHistorySync = () => { 
                 const dailyRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'daily_history'); 
-                window.onSnapshot(dailyRef, async (snapshot) => { 
+                window.onSnapshot(dailyRef, (snapshot) => { 
                     if (snapshot.exists()) { 
-                        let history = snapshot.data().history || [];
-                        
-                        // 🚨 12.03 누락 데이터 강제 주입
-                        const hasDec3 = history.some(h => h.date === '2025.12.03');
-                        if (!hasDec3) {
-                            const fixedData = {
-                                date: '2025.12.03',
-                                close: 1271, // 3일 종가
-                                diff: 29,    // 1271 - 1242 = 29
-                                rate: "2.33", // 2.33%
-                                vol: 12050,  // 임의값
-                                amt: 15315550 
-                            };
-                            history = [fixedData, ...history]; 
-                            history.sort((a,b) => new Date(b.date) - new Date(a.date));
-                            
-                            await window.updateDoc(dailyRef, { history: history });
-                        }
-
-                        state.dailyHistory = history; 
+                        const history = snapshot.data().history || [];
+                        state.dailyHistory = [...history].sort((a, b) => parseDotDate(b.date) - parseDotDate(a.date)); 
                         renderDailyQuotes(); 
                     } else { 
                         window.setDoc(dailyRef, { history: [] }); 
@@ -708,7 +759,7 @@
             function renderDailyQuotes() { 
                 if (state.dailyHistory.length === 0) { els.dailyQuoteList.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-400">기록된 시세가 없습니다.</td></tr>'; return; } 
                 els.dailyQuoteList.innerHTML = state.dailyHistory.map(item => { 
-                    const isUp = item.diff > 0; const isZero = item.diff == 0; const colorClass = isUp ? 'text-up' : (isZero ? 'text-gray' : 'text-down'); const sign = isUp ? '+' : ''; 
+                    const isUp = item.diff > 0; const isZero = item.diff == 0; const colorClass = isUp ? 'text-up' : (isZero ? 'text-[#8b95a1]' : 'text-down'); const sign = isUp ? '+' : ''; 
                     return `<tr><td>${item.date}</td><td class="font-bold ${colorClass}">${fmt(item.close)}</td><td class="${colorClass}">${sign}${item.rate}%</td><td>${fmt(item.vol)}</td><td style="padding-right: 0;">${fmtAmt(item.amt)}</td></tr>`; 
                 }).join(''); 
             }
@@ -798,7 +849,7 @@
             els.btnProfile.onclick = () => { els.loginModal.classList.remove('hidden'); els.inputPw.value = ''; setTimeout(() => els.inputPw.focus(), 100); };
             els.btnLoginCancel.onclick = () => { els.loginModal.classList.add('hidden'); };
             els.btnLoginConfirm.onclick = () => { const pw = els.inputPw.value; if (pw === '0920') { state.isAdmin = true; els.loginModal.classList.add('hidden'); els.adminPanel.classList.remove('hidden'); showToast("관리자 권한 획득 🔓"); updateUI(); } else { showToast("비밀번호 불일치 ❌"); els.inputPw.value = ''; els.inputPw.focus(); } };
-            const triggerSharpMove = async (type) => { if (!state.isAdmin) return; const factor = 0.10 + (Math.random() * 0.10); let change = Math.floor(state.currentPrice * factor); let nextPrice; let logMsg; if (type === 'surge') { nextPrice = state.currentPrice + change; logMsg = `관리자: 급등 이벤트 발생 (+${(factor*100).toFixed(1)}%)`; } else { nextPrice = Math.max(1, state.currentPrice - change); logMsg = `관리자: 급락 이벤트 발생 (-${(factor*100).toFixed(1)}%)`; } const newHistory = [...state.history, nextPrice]; if (newHistory.length > 1000) newHistory.shift(); state.currentPrice = nextPrice; state.history = newHistory; state.lastUpdated = Date.now(); updateUI(); updateWalletUI(); checkPendingOrders(nextPrice); showToast(logMsg); const docRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'enjoy_ticker'); try { await window.updateDoc(docRef, { currentPrice: nextPrice, history: newHistory, lastUpdated: Date.now() }); } catch(e) { console.error(e); } };
+            const triggerSharpMove = async (type) => { if (!state.isAdmin) return; const factor = 0.10 + (Math.random() * 0.10); let change = Math.floor(state.currentPrice * factor); let nextPrice; let logMsg; if (type === 'surge') { nextPrice = state.currentPrice + change; logMsg = `관리자: 급등 이벤트 발생 (+${(factor*100).toFixed(1)}%)`; } else { nextPrice = Math.max(1, state.currentPrice - change); logMsg = `관리자: 급락 이벤트 발생 (-${(factor*100).toFixed(1)}%)`; } const newHistory = [...state.history, nextPrice]; if (newHistory.length > 1000) newHistory.shift(); state.currentPrice = nextPrice; state.history = newHistory; state.lastUpdated = Date.now(); animateDisplayPriceToCurrent(); updateUI(); updateWalletUI(); checkPendingOrders(nextPrice); showToast(logMsg); const docRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'enjoy_ticker'); try { await window.updateDoc(docRef, { currentPrice: nextPrice, history: newHistory, lastUpdated: Date.now() }); } catch(e) { console.error(e); } };
             els.btnAdminSurge.onclick = () => triggerSharpMove('surge'); els.btnAdminCrash.onclick = () => triggerSharpMove('crash');
             const setAdminTrend = async (trend) => { if (!state.isAdmin) return; const duration = 30 * 1000; const until = Date.now() + duration; const mood = trend === 'up' ? 'bull' : 'bear'; state.marketMood = mood; state.adminTrend = trend; state.adminTrendUntil = until; updateUI(); updateMoodUI(); showToast(`관리자: ${trend === 'up' ? '상승' : '하락'}장 조작 시작 (30초)`); const docRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'enjoy_ticker'); try { await window.updateDoc(docRef, { adminTrend: trend, adminTrendUntil: until, marketMood: mood, nextMoodChange: until }); } catch(e) { console.error(e); } };
             const setMarketStatus = async (pause) => { if (!state.isAdmin) return; state.manualPause = pause; updateUI(); showToast(`장 ${pause ? '일시정지' : '재개'} 완료`); const docRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'enjoy_ticker'); try { await window.updateDoc(docRef, { manualPause: pause }); } catch(e) { console.error(e); } };
@@ -875,9 +926,9 @@
             }
 
             function updateUI() { 
-                els.price.innerText = fmt(state.currentPrice); els.diffLabel.innerText = state.basePriceLabel; 
-                const diff = state.currentPrice - state.basePrice; 
-                const rate = ((diff / state.basePrice) * 100).toFixed(1); 
+                els.price.innerText = fmt(state.displayPrice); els.diffLabel.innerText = state.basePriceLabel; 
+                const diff = state.displayPrice - state.basePrice; 
+                const rate = state.basePrice > 0 ? ((diff / state.basePrice) * 100).toFixed(1) : '0.0'; 
                 const sign = diff > 0 ? '+' : ''; const isUp = diff >= 0; 
                 els.diffVal.innerText = `${sign}${diff}원`; els.rate.innerText = `(${sign}${rate}%)`; 
                 els.diffBox.className = `flex items-center gap-1 ${isUp ? 'text-up' : 'text-down'}`; 
