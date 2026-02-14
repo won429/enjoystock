@@ -453,6 +453,7 @@
             };
             let isSyncInitialized = false;
             let marketTickTimer = null;
+            let isCatchupRunning = false;
 
             const MARKET_START_HOUR = 8;
             const MARKET_START_MIN = 0;
@@ -514,6 +515,23 @@
                 if (isSyncInitialized) return;
                 isSyncInitialized = true;
                 const docRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'enjoy_ticker');
+
+                const runCatchup = async () => {
+                    if (isCatchupRunning) return;
+                    isCatchupRunning = true;
+                    try {
+                        await simulateMissingData(docRef);
+                    } finally {
+                        isCatchupRunning = false;
+                    }
+                };
+
+                document.addEventListener('visibilitychange', () => {
+                    if (document.visibilityState === 'visible' && state.isConnected) {
+                        runCatchup().catch(() => {});
+                    }
+                });
+
                 window.onSnapshot(docRef, async (snapshot) => {
                     if (snapshot.exists()) {
                         const data = snapshot.data();
@@ -562,7 +580,7 @@
                             state.todayTradeAmount = Number.isFinite(data.todayTradeAmount) ? data.todayTradeAmount : 0;
                         }
 
-                        await simulateMissingData(docRef);
+                        await runCatchup();
 
                         state.adminTrend = data.adminTrend || null; 
                         state.adminTrendUntil = data.adminTrendUntil || 0; 
@@ -596,7 +614,7 @@
 
                     if (isMarketOpen) {
                         if (Date.now() - state.lastUpdated > 600000) {
-                            await generateNextTick(docRef);
+                            await runCatchup();
                         }
                     }
                 }, 1000);
