@@ -454,6 +454,7 @@
             let isSyncInitialized = false;
             let marketTickTimer = null;
             let isCatchupRunning = false;
+            let lastCatchupAt = 0;
 
             const MARKET_START_HOUR = 8;
             const MARKET_START_MIN = 0;
@@ -516,9 +517,13 @@
                 isSyncInitialized = true;
                 const docRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'enjoy_ticker');
 
-                const runCatchup = async () => {
+                const runCatchup = async (force = false) => {
+                    if (!state.isConnected && !force) return;
+                    const nowMs = Date.now();
+                    if (!force && (nowMs - lastCatchupAt) < 1500) return;
                     if (isCatchupRunning) return;
                     isCatchupRunning = true;
+                    lastCatchupAt = nowMs;
                     try {
                         await simulateMissingData(docRef);
                     } finally {
@@ -526,11 +531,16 @@
                     }
                 };
 
+                const requestCatchupOnResume = () => {
+                    runCatchup().catch(() => {});
+                };
+
                 document.addEventListener('visibilitychange', () => {
-                    if (document.visibilityState === 'visible' && state.isConnected) {
-                        runCatchup().catch(() => {});
-                    }
+                    if (document.visibilityState === 'visible') requestCatchupOnResume();
                 });
+                window.addEventListener('focus', requestCatchupOnResume);
+                window.addEventListener('pageshow', requestCatchupOnResume);
+                window.addEventListener('online', requestCatchupOnResume);
 
                 window.onSnapshot(docRef, async (snapshot) => {
                     if (snapshot.exists()) {
@@ -580,7 +590,7 @@
                             state.todayTradeAmount = Number.isFinite(data.todayTradeAmount) ? data.todayTradeAmount : 0;
                         }
 
-                        await runCatchup();
+                        await runCatchup(true);
 
                         state.adminTrend = data.adminTrend || null; 
                         state.adminTrendUntil = data.adminTrendUntil || 0; 
