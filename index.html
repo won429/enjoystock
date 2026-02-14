@@ -739,17 +739,23 @@
             async function recordDailyHistory(dateObj, closePrice, basePrice, volume, tradeAmt) { 
                 const dailyRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'daily_history'); 
                 const dateStr = `${dateObj.getFullYear()}.${String(dateObj.getMonth()+1).padStart(2,'0')}.${String(dateObj.getDate()).padStart(2,'0')}`; 
-                const diff = closePrice - basePrice; 
-                const diffRate = basePrice > 0 ? ((diff / basePrice) * 100).toFixed(2) : "0.00"; 
-                const newItem = { date: dateStr, close: closePrice, diff: diff, rate: diffRate, vol: volume, amt: tradeAmt }; 
+                const safeClose = Number.isFinite(closePrice) && closePrice > 0 ? Math.round(closePrice) : 1271;
+                const safeBase = Number.isFinite(basePrice) && basePrice > 0 ? Math.round(basePrice) : safeClose;
+                const safeVol = Number.isFinite(volume) && volume >= 0 ? Math.floor(volume) : 0;
+                const safeAmt = Number.isFinite(tradeAmt) && tradeAmt >= 0 ? Math.floor(tradeAmt) : 0;
+                const diff = safeClose - safeBase; 
+                const diffRate = safeBase > 0 ? ((diff / safeBase) * 100).toFixed(2) : "0.00"; 
+                const newItem = { date: dateStr, close: safeClose, diff: diff, rate: diffRate, vol: safeVol, amt: safeAmt }; 
                 
                 const docSnap = await window.getDoc(dailyRef); 
-                let currentHistory = []; 
-                if (docSnap.exists()) { currentHistory = docSnap.data().history || []; } 
-                if (currentHistory.length > 0 && currentHistory[0].date === dateStr) return; 
+                const currentHistory = docSnap.exists() && Array.isArray(docSnap.data().history) ? docSnap.data().history : []; 
+                const hasSameDate = currentHistory.some(item => item && item.date === dateStr);
+                if (hasSameDate) return; 
                 
-                const newHistory = [newItem, ...currentHistory].slice(0, 365); 
-                await window.updateDoc(dailyRef, { history: newHistory }); 
+                const newHistory = [newItem, ...currentHistory]
+                    .sort((a, b) => parseDotDate(b?.date) - parseDotDate(a?.date))
+                    .slice(0, 365); 
+                await window.setDoc(dailyRef, { history: newHistory }, { merge: true }); 
             };
 
             const startWalletSync = () => { const walletDocRef = window.doc(window.db, 'artifacts', window.appId, 'public', 'data', 'stock_data', 'shared_wallet'); window.onSnapshot(walletDocRef, (snapshot) => { if (snapshot.exists()) { const data = snapshot.data(); state.walletCash = data.cash || 0; state.walletStocks = data.stocks || 0; state.walletAvgPrice = data.avgPrice || 0; state.pendingOrders = data.pendingOrders || []; updateWalletUI(); } else { window.setDoc(walletDocRef, { cash: 0, stocks: 0, avgPrice: 0, pendingOrders: [] }); } }); };
